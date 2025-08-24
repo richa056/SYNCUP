@@ -1,0 +1,35 @@
+{
+  "name": "syncup",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "recharts": "^3.1.2",
+    "react-dom": "^19.1.1",
+    "lucide-react": "^0.539.0",
+    "react-router-dom": "^7.8.0",
+    "framer-motion": "^12.23.12",
+    "@google/genai": "^1.13.0",
+    "@lottiefiles/lottie-player": "^2.0.4",
+    "express": "^5.1.0",
+    "dotenv": "^17.2.1",
+    "cors": "^2.8.5",
+    "passport": "^0.7.0",
+    "mongoose": "^8.17.1",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-linkedin-oauth2": "^2.0.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
