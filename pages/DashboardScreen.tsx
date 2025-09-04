@@ -319,6 +319,7 @@ const DashboardScreen: React.FC = () => {
           </div>
         </div>
       ) : (
+      <>
       {/* Match Progress */}
       <div className="text-center text-white mb-6">
         <h2 className="text-2xl font-bold mb-2">Discover Matches</h2>
@@ -379,6 +380,7 @@ const DashboardScreen: React.FC = () => {
           </motion.button>
         </div>
       </div>
+      </>
       )}
     </div>
   );
