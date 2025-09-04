@@ -19,15 +19,28 @@ connectDB();
 const app = express();
 
 // Middleware
+// CORS: reflect requesting origin to ensure ACAO header is present in all responses
 app.use(cors({
-  origin: [
-    /^http:\/\/localhost(:\d+)?$/,
-    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-    // Allow private LAN ranges: 10.0.0.0/8, 172.16.0.0 - 172.31.0.0, 192.168.0.0/16
-    /^http:\/\/(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))(\.[0-9]{1,3}){2}(:\d+)?$/
-  ],
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow no-origin requests (e.g., curl, health checks)
+    if (!origin) return callback(null, true);
+    const allowed = [
+      /^http:\/\/localhost(:\d+)?$/,
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+      /^http:\/\/(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))(\.[0-9]{1,3}){2}(:\d+)?$/,
+      /^https:\/\/.*\.vercel\.app$/,
+      /^https:\/\/(.*\.)?onrender\.com$/
+    ];
+    const ok = allowed.some(rx => rx.test(origin));
+    return callback(null, ok);
+  },
+  credentials: false, // we are not sending cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Handle preflight
+app.options('*', cors());
 app.use(express.json());
 app.use(passport.initialize());
 
