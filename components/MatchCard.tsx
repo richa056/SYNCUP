@@ -2,7 +2,7 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
 import { DeveloperProfile } from '../types';
-import { Heart, MessageSquare, Info } from 'lucide-react';
+import { Heart, MessageSquare, Info, X, UserPlus } from 'lucide-react';
 import { useProfileBuilder } from '../context/ProfileBuilderContext';
 
 const itemVariants: Variants = {
@@ -18,10 +18,20 @@ interface MatchCardProps {
 }
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat }) => {
-  const { likedMatches, toggleLike } = useProfileBuilder();
+  const { likedMatches, toggleLike, passMatch, connectionRequests, sendConnectionRequest } = useProfileBuilder();
   const isLiked = likedMatches.has(match.id);
+  const isPassed = false; // We'll implement this
+  const hasConnectionRequest = connectionRequests.has(match.id);
   const compatibilityScore = score;
   const scoreColor = compatibilityScore > 80 ? 'text-green-400' : compatibilityScore > 60 ? 'text-yellow-400' : 'text-orange-400';
+
+  const handlePass = () => {
+    passMatch(match.id);
+  };
+
+  const handleConnectionRequest = () => {
+    sendConnectionRequest(match.id);
+  };
 
   return (
     <motion.div
@@ -58,24 +68,64 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat
           </span>
         ))}
       </div>
+
+      {/* Action Buttons */}
       <div className="flex gap-4 mt-auto pt-4">
+        {/* Pass Button */}
+        <motion.button 
+          onClick={handlePass}
+          className="p-3 bg-red-500/20 text-red-500 rounded-full"
+          whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.4)'}}
+          whileTap={{ scale: 0.9 }}
+          title="Pass on this match"
+        >
+          <X size={20} />
+        </motion.button>
+
+        {/* Like Button */}
         <motion.button 
           onClick={() => toggleLike(match.id)}
           className={`p-3 rounded-full transition-colors duration-300 ${isLiked ? 'bg-brand-secondary text-white' : 'bg-brand-secondary/20 text-brand-secondary'}`}
           whileHover={{ scale: 1.1, backgroundColor: isLiked ? 'rgb(236 72 153)' : 'rgba(236, 72, 153, 0.4)'}}
           whileTap={{ scale: 0.9 }}
+          title={isLiked ? 'Unlike' : 'Like this match'}
         >
           <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
         </motion.button>
-        <motion.button 
-          onClick={() => onStartChat(match)}
-          className="p-3 bg-brand-primary/20 text-brand-primary rounded-full"
-          whileHover={{ scale: 1.1, backgroundColor: 'rgba(79, 70, 229, 0.4)'}}
-          whileTap={{ scale: 0.9 }}
-        >
-          <MessageSquare size={20} />
-        </motion.button>
+
+        {/* Connection Request Button - Only show if liked */}
+        {isLiked && !hasConnectionRequest && (
+          <motion.button 
+            onClick={handleConnectionRequest}
+            className="p-3 bg-green-500/20 text-green-500 rounded-full"
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(34, 197, 94, 0.4)'}}
+            whileTap={{ scale: 0.9 }}
+            title="Send connection request"
+          >
+            <UserPlus size={20} />
+          </motion.button>
+        )}
+
+        {/* Chat Button - Only show if liked */}
+        {isLiked && (
+          <motion.button 
+            onClick={() => onStartChat(match)}
+            className="p-3 bg-brand-primary/20 text-brand-primary rounded-full"
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(79, 70, 229, 0.4)'}}
+            whileTap={{ scale: 0.9 }}
+            title="Start chat"
+          >
+            <MessageSquare size={20} />
+          </motion.button>
+        )}
       </div>
+
+      {/* Status Messages */}
+      {hasConnectionRequest && (
+        <div className="mt-2 text-xs text-green-500 bg-green-500/10 px-3 py-1 rounded-full">
+          Connection request sent
+        </div>
+      )}
     </motion.div>
   );
 };

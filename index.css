@@ -58,3 +58,35 @@
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* Moving gradient background (applies to full-page bg) */
+.moving-gradient {
+  background: radial-gradient(circle at 0% 50%, rgba(79,70,229,0.35), transparent 40%),
+              radial-gradient(circle at 100% 50%, rgba(236,72,153,0.35), transparent 40%),
+              radial-gradient(circle at 50% 0%, rgba(20,184,166,0.25), transparent 40%),
+              linear-gradient(90deg, #0D0C1D, #1F1E3D);
+  background-size: 200% 200%, 200% 200%, 200% 200%, 100% 100%;
+  animation: river-shift 30s ease-in-out infinite;
+}
+
+@keyframes river-shift {
+  0% { background-position: 0% 50%, 100% 50%, 50% 0%, 0% 0%; }
+  50% { background-position: 100% 50%, 0% 50%, 50% 100%, 0% 0%; }
+  100% { background-position: 0% 50%, 100% 50%, 50% 0%, 0% 0%; }
+}
+
+/* Soft radial glow spots */
+.bg-glow-spot {
+  position: absolute;
+  filter: blur(60px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .moving-gradient {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}

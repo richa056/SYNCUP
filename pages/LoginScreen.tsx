@@ -78,8 +78,12 @@ const LoginScreen: React.FC = () => {
     const redirectCallback = `${currentOrigin}/#/auth/callback`;
     const encoded = encodeURIComponent(redirectCallback);
     
+    // Resolve backend base URL: prefer env, otherwise same host with port 3001
+    const envBackend = (import.meta as any).env?.VITE_BACKEND_URL as string | undefined;
+    const backendBase = envBackend || `${window.location.protocol}//${window.location.hostname}:3001`;
+    
     // Test backend connectivity first
-    fetch('http://localhost:3001/')
+    fetch(`${backendBase}/`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Backend not responding');
@@ -88,15 +92,15 @@ const LoginScreen: React.FC = () => {
         
         switch (provider) {
           case 'GitHub':
-            window.location.href = `http://localhost:3001/auth/github?redirect=${encoded}`;
+            window.location.href = `${backendBase}/auth/github?redirect=${encoded}`;
             break;
           case 'Google':
-            window.location.href = `http://localhost:3001/auth/google?redirect=${encoded}`;
+            window.location.href = `${backendBase}/auth/google?redirect=${encoded}`;
             break;
           case 'LinkedIn':
             console.log('Starting LinkedIn OAuth...');
             setLinkedInError(null); // Clear any previous errors
-            window.location.href = `http://localhost:3001/auth/linkedin`;
+            window.location.href = `${backendBase}/auth/linkedin`;
             break;
         }
       })

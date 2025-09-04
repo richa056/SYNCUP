@@ -6,27 +6,27 @@ export const MEME_BASE_URL = (import.meta as any).env?.VITE_MEME_BASE_URL || '/m
 export const QUIZ_QUESTIONS = [
   {
     id: 1,
-    question: "What's your preferred work schedule?",
+    question: "Preferred work schedule",
     type: "cards",
     options: [
-      "☀️ Morning Maverick",
-      "🌙 Night Owl Ninja", 
-      "🌅 Flexible Fighter"
+      "Morning",
+      "Night", 
+      "Flexible"
     ]
   },
   {
     id: 2,
-    question: "How do you customize your terminal?",
+    question: "Terminal preference",
     type: "cards",
     options: [
-      "🎨 Zsh/Fish Customizer",
-      " Bash Purist",
-      "🚀 Warp/Fig Magician"
+      "Customized Zsh/Fish",
+      "Default Bash",
+      "Modern GUI terminal"
     ]
   },
   {
     id: 3,
-    question: "Rate your debugging stress level (0 = Zen, 100 = Panic)",
+    question: "Debugging stress level (0–100)",
     type: "slider",
     min: 0,
     max: 100,
@@ -34,49 +34,49 @@ export const QUIZ_QUESTIONS = [
   },
   {
     id: 4,
-    question: "Tabs or Spaces?",
+    question: "Tabs or spaces",
     type: "toggle",
     options: ["Tabs", "Spaces"]
   },
   {
     id: 5,
-    question: "Your project management style?",
+    question: "Project management style",
     type: "cards",
     options: [
-      "Kanban King",
-      "Git Guru", 
-      "Notion Nerd"
+      "Kanban board",
+      "GitHub Issues", 
+      "Documentation-first"
     ]
   },
   {
     id: 6,
-    question: "Preferred state management?",
+    question: "Preferred state management",
     type: "cards",
     options: [
-      "⚛️ Context API",
-      "🐻 Zustand/Jotai",
-      "🔄 Redux Saga"
+      "Context API",
+      "Zustand/Jotai",
+      "Redux/Redux-Saga"
     ]
   },
   {
     id: 7,
-    question: "Light or Dark theme?",
+    question: "Theme preference",
     type: "toggle",
     options: ["Light", "Dark"]
   },
   {
     id: 8,
-    question: "Naming convention preference?",
+    question: "Naming convention",
     type: "cards",
     options: [
-      "camelCaseChampion",
-      "PascalCasePioneer",
-      "snake_case_selector"
+      "camelCase",
+      "PascalCase",
+      "snake_case"
     ]
   },
   {
     id: 9,
-    question: "Documentation importance (0 = Essential, 100 = Optional)",
+    question: "Documentation importance (0–100)",
     type: "slider",
     min: 0,
     max: 100,
@@ -84,12 +84,12 @@ export const QUIZ_QUESTIONS = [
   },
   {
     id: 10,
-    question: "Your ideal work environment?",
+    question: "Ideal work environment",
     type: "cards",
     options: [
-      "💻 Minimalist Laptop",
-      "🏙️ Multi-Monitor Command Center",
-      "☕ Cozy Coffee Shop"
+      "Single laptop",
+      "Multi‑monitor desk",
+      "Coffee shop/Co‑working"
     ]
   }
 ];

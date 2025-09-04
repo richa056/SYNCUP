@@ -15,8 +15,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <HashRouter>
+    <HashRouter>
+      <ErrorBoundary>
         <AuthProvider>
           <ProfileBuilderProvider>
             <ChatProvider>
@@ -24,7 +24,7 @@ root.render(
             </ChatProvider>
           </ProfileBuilderProvider>
         </AuthProvider>
-      </HashRouter>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </HashRouter>
   </React.StrictMode>
 );

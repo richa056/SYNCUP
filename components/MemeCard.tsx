@@ -43,11 +43,10 @@ const MemeCard: React.FC<MemeCardProps> = ({ meme, onReaction }) => {
     const threshold = 100;
     if (Math.abs(info.offset.x) > threshold) {
       const direction = info.offset.x > 0 ? 'right' : 'left';
-      if (direction === 'right') {
-        onReaction('😂');
-      } else {
-        onReaction('😐');
-      }
+      // Edge emoji rule: left swipe -> leftmost emoji, right swipe -> rightmost emoji
+      const leftmost: '😐' = '😐';
+      const rightmost: '😭' = '😭';
+      onReaction(direction === 'right' ? rightmost : leftmost);
     }
   };
 

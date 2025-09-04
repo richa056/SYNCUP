@@ -43,46 +43,11 @@ const profileGenerationSchema = {
     required: ["codename", "traits", "badges", "profileRating", "trustLevel", "devDna"]
 };
 
-export const generateDeveloperProfile = async (
-  quizAnswers,
-  memeReactions,
-  loginProvider
-) => {
-  const prompt = `
-    You are a witty and creative persona generator for a developer matching app called SyncUp.
-    Your goal is to make the user feel cool and understood.
-    Based on the following quiz answers, meme reactions, and login method, create a unique developer profile.
-    Generate a new codename, 3 traits, 3 badges, a profile rating, a trust level, and a mock 'Dev DNA' structure.
-    
-    **User's Data:**
-    - Login Method: ${loginProvider}. (GitHub suggests a focus on collaboration; LinkedIn suggests professionalism; Google is neutral. Use this as a subtle hint for the tone of the persona).
-    - Quiz Answers: ${JSON.stringify(quizAnswers)}
-    - Meme Reactions: ${JSON.stringify(memeReactions)}
-
-    Return ONLY a valid JSON object matching the requested schema. Do not include any other text or markdown.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: profileGenerationSchema,
-      },
-    });
-    return JSON.parse(response.text);
-  } catch (error) {
-    console.error("AI Profile Generation Failed:", error);
-    throw new Error("Failed to generate profile with AI");
-  }
+export const generateDeveloperProfile = async () => {
+  throw new Error('Gemini integration removed');
 };
 
 // Match scoring can be added here later
-export const calculateMatchScore = async (userA, userB) => {
-    // This logic can be fleshed out similar to the original mockApi
-    return {
-        score: Math.floor(Math.random() * (95 - 60 + 1)) + 60,
-        reason: "Your energies seem to align well!"
-    };
+export const calculateMatchScore = async () => {
+  throw new Error('Gemini integration removed');
 };

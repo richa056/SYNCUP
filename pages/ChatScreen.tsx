@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProfileBuilder } from '../context/ProfileBuilderContext';
 import { Send, ArrowLeft, User, MessageCircle } from 'lucide-react';
+import { messagingService } from '../services/messagingService';
 
 interface Message {
   id: string;
@@ -17,32 +18,95 @@ interface ChatScreenProps {
   // Add any props if needed
 }
 
+const buildConversationId = (a: string, b: string) => [a, b].sort().join('::');
+
 const ChatScreen: React.FC<ChatScreenProps> = () => {
-  const { profileId } = useParams<{ profileId: string }>();
+  const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { analyzedMatches, mutualConnections } = useProfileBuilder();
+  const { analyzedMatches, mutualConnections, manualRefreshConnections } = useProfileBuilder();
+  
+  // Refresh connection state when component loads
+  useEffect(() => {
+    if (currentUser?.id) {
+      console.log('🔍 ChatScreen: refreshing connections on load');
+      manualRefreshConnections();
+    }
+  }, [currentUser?.id, manualRefreshConnections]);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
   
   // Find the profile we're chatting with
-  const otherProfile = analyzedMatches.find(profile => profile.id === profileId);
+  const otherProfile = analyzedMatches.find(profile => profile.id === matchId);
   
   // Check if we have a mutual connection
-  const hasMutualConnection = mutualConnections.has(profileId || '');
+  const hasMutualConnection = mutualConnections.has(matchId || '');
+  
+  // Establish SSE connection and subscribe to this conversation
+  useEffect(() => {
+    if (!currentUser?.id || !matchId || !hasMutualConnection) return;
+
+    // Ensure SSE is connected for this user
+    messagingService.connect(currentUser.id);
+
+    const convId = buildConversationId(currentUser.id, matchId);
+
+    // Load server-side history once
+    (async () => {
+      const history = await messagingService.getConversationHistory(convId, 200);
+      if (history.length > 0) {
+        const normalized = history.map((h: any) => ({
+          id: h.id,
+          senderId: h.senderId,
+          receiverId: h.senderId === currentUser.id ? matchId : currentUser.id,
+          content: h.text,
+          timestamp: new Date(h.timestamp),
+          isRead: true
+        }));
+        // mark seen ids to avoid duplicates later
+        normalized.forEach(n => seenIdsRef.current.add(n.id));
+        setMessages(prev => {
+          const existing = new Map(prev.map(m => [m.id, m]));
+          normalized.forEach(n => existing.set(n.id, n));
+          return Array.from(existing.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        });
+      }
+    })();
+
+    const handler = (incoming: any) => {
+      // Ignore own messages (sender renders optimistically)
+      if (incoming.senderId === currentUser.id) return;
+      if (seenIdsRef.current.has(incoming.id)) return;
+      seenIdsRef.current.add(incoming.id);
+
+      const msg: Message = {
+        id: incoming.id,
+        senderId: incoming.senderId,
+        receiverId: incoming.senderId === currentUser.id ? matchId : currentUser.id,
+        content: incoming.text,
+        timestamp: new Date(incoming.timestamp),
+        isRead: true
+      };
+      setMessages(prev => [...prev, msg]);
+    };
+
+    messagingService.onMessage(convId, handler);
+    return () => messagingService.offMessage(convId);
+  }, [currentUser?.id, matchId, hasMutualConnection]);
   
   useEffect(() => {
-    if (!profileId || !hasMutualConnection) {
+    if (!matchId || !hasMutualConnection) {
       navigate('/dashboard');
       return;
     }
     
     // Load chat history from localStorage
-    const chatKey = `chat_${currentUser?.id}_${profileId}`;
+    const chatKey = `chat_${currentUser?.id}_${matchId}`;
     const storedMessages = localStorage.getItem(chatKey);
     if (storedMessages) {
       try {
@@ -50,82 +114,56 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
           ...msg,
           timestamp: new Date(msg.timestamp)
         }));
+        // Seed seen ids to avoid double-render
+        parsedMessages.forEach((m: any) => {
+          if (m.id) seenIdsRef.current.add(m.id);
+        });
         setMessages(parsedMessages);
       } catch (error) {
         console.error('Error loading chat history:', error);
       }
     }
     
-    // Simulate other user typing indicator
     const typingInterval = setInterval(() => {
-      if (Math.random() < 0.1) { // 10% chance every interval
+      if (Math.random() < 0.08) {
         setOtherUserTyping(true);
-        setTimeout(() => setOtherUserTyping(false), 2000 + Math.random() * 3000);
+        setTimeout(() => setOtherUserTyping(false), 2000 + Math.random() * 2000);
       }
-    }, 5000);
+    }, 6000);
     
     return () => clearInterval(typingInterval);
-  }, [profileId, hasMutualConnection, currentUser?.id, navigate]);
+  }, [matchId, hasMutualConnection, currentUser?.id, navigate]);
   
   useEffect(() => {
-    // Scroll to bottom when new messages arrive
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (currentUser?.id && matchId) {
+      const chatKey = `chat_${currentUser.id}_${matchId}`;
+      localStorage.setItem(chatKey, JSON.stringify(messages));
+    }
+  }, [messages, currentUser?.id, matchId]);
   
-  const sendMessage = () => {
-    if (!newMessage.trim() || !profileId || !currentUser?.id) return;
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !matchId || !currentUser?.id) return;
     
     const message: Message = {
-      id: Date.now().toString(),
+      id: `local-${Date.now()}-${Math.random()}`,
       senderId: currentUser.id,
-      receiverId: profileId,
+      receiverId: matchId,
       content: newMessage.trim(),
       timestamp: new Date(),
       isRead: false
     };
+    // Mark this id as seen to avoid accidental duplicates
+    seenIdsRef.current.add(message.id);
     
     setMessages(prev => [...prev, message]);
     setNewMessage('');
     
-    // Save to localStorage
-    const chatKey = `chat_${currentUser.id}_${profileId}`;
-    const updatedMessages = [...messages, message];
-    localStorage.setItem(chatKey, JSON.stringify(updatedMessages));
+    const convId = buildConversationId(currentUser.id, matchId);
+    await messagingService.sendMessage(convId, matchId, message.content, currentUser.id);
     
-    // Simulate typing indicator
     setIsTyping(true);
-    setTimeout(() => setIsTyping(false), 1000);
-    
-    // Simulate response after 2-5 seconds
-    setTimeout(() => {
-      const responses = [
-        "That's interesting! Tell me more.",
-        "I see what you mean!",
-        "That's a great point!",
-        "I'd love to hear more about that.",
-        "That sounds exciting!",
-        "I'm curious to learn more.",
-        "That's really cool!",
-        "I'd like to explore that further."
-      ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      
-      const responseMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: profileId,
-        receiverId: currentUser.id,
-        content: randomResponse,
-        timestamp: new Date(),
-        isRead: false
-      };
-      
-      setMessages(prev => [...prev, responseMessage]);
-      
-      // Save response to localStorage
-      const updatedMessagesWithResponse = [...updatedMessages, responseMessage];
-      localStorage.setItem(chatKey, JSON.stringify(updatedMessagesWithResponse));
-    }, 2000 + Math.random() * 3000);
+    setTimeout(() => setIsTyping(false), 900);
   };
   
   const handleKeyPress = (e: React.KeyboardEvent) => {

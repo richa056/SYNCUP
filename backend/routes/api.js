@@ -2,7 +2,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { generateDeveloperProfile, calculateMatchScore } from '../services/geminiService.js';
 
 const router = express.Router();
 
@@ -58,50 +57,23 @@ router.post('/profile/finalize', protect, async (req, res) => {
 
         console.log('✅ Found user:', user.name);
 
-        const aiProfile = await generateDeveloperProfile(quizAnswers, memeReactions, user.provider);
-        
+        // Persist onboarding data only; no AI/Gemini
         user.quizAnswers = quizAnswers;
         user.memeReactions = memeReactions;
-        user.codename = aiProfile.codename;
-        user.traits = aiProfile.traits;
-        user.badges = aiProfile.badges;
-        user.profileRating = aiProfile.profileRating;
-        user.trustLevel = aiProfile.trustLevel;
-        user.devDna = aiProfile.devDna; // Gemini service will create this
         user.profileComplete = true; // Mark profile as complete
 
         console.log('💾 Saving user profile with quiz answers and meme reactions...');
         const updatedUser = await user.save();
         console.log('✅ User profile saved successfully:', updatedUser.name);
         
-        // Trigger real-time matching for other users
-        console.log('🔄 User completed onboarding, triggering real-time matching...');
-        
-        // Find all other users who have completed onboarding
-        const otherUsers = await User.find({
-          _id: { $ne: user._id },
-          profileComplete: true,
-          quizAnswers: { $exists: true, $ne: {} },
-          memeReactions: { $exists: true, $ne: [] }
-        }).select('_id');
-        
-        console.log(`🔄 Found ${otherUsers.length} other users to check for matches`);
-        
-        // For each other user, check if they would match with this new user
-        for (const otherUser of otherUsers) {
-          try {
-            // This is a simplified check - in a real app you might want to use a queue system
-            console.log(`🔄 Checking if user ${otherUser._id} matches with new user ${user._id}`);
-          } catch (error) {
-            console.error(`Error checking matches for user ${otherUser._id}:`, error);
-          }
-        }
+        // Optionally trigger real-time matching asynchronously (no-op for now)
+        console.log('🔄 User completed onboarding, data saved.');
         
         res.json(updatedUser);
 
     } catch (error) {
         console.error("Profile finalization error:", error);
-        res.status(500).json({ message: 'Error generating profile' });
+        res.status(500).json({ message: 'Error finalizing profile' });
     }
 });
 

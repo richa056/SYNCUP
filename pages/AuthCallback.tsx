@@ -37,11 +37,28 @@ const AuthCallback: React.FC = () => {
           // Persist the auth token so AuthContext can validate session presence
           localStorage.setItem('syncup_auth_token', token);
           
-          // Build a valid DeveloperProfile from token data
+          // Sync or create user in backend to get real Mongo _id
+          const syncRes = await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider: (payload.provider || 'google').toLowerCase(),
+              providerId: payload.providerId || payload.sub || payload.email,
+              email: payload.email,
+              name: payload.name,
+              avatarUrl: payload.avatarUrl
+            })
+          });
+          if (!syncRes.ok) {
+            throw new Error('Failed to sync user');
+          }
+          const synced = await syncRes.json();
+          
+          // Build a valid DeveloperProfile from token data (using real Mongo id)
           const user = {
-            id: String(payload.id || 'user_' + Date.now()),
-            name: payload.name || 'Anonymous Developer',
-            avatarUrl: payload.avatarUrl || 'https://via.placeholder.com/150',
+            id: String(synced.id || synced._id),
+            name: synced.name || payload.name || 'Anonymous Developer',
+            avatarUrl: synced.avatarUrl || payload.avatarUrl || 'https://via.placeholder.com/150',
             codename: payload.codename || 'CodeCraft',
             badges: payload.badges || ['New Developer'],
             traits: payload.traits || ['Eager Learner'],
@@ -56,7 +73,7 @@ const AuthCallback: React.FC = () => {
               commitFrequency: 5,
               starCount: 10
             },
-          };
+          } as any;
           
           // Store user data immediately in localStorage
           localStorage.setItem('syncup_current_user', JSON.stringify(user));

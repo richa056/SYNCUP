@@ -153,7 +153,8 @@ const generateMatchReasons = (
 export const saveUserProfileData = async (
   userId: string,
   quizAnswers: QuizAnswers,
-  memeReactions: MemeReaction[]
+  memeReactions: MemeReaction[],
+  profileComplete?: boolean
 ): Promise<boolean> => {
   try {
     console.log('🔄 Saving user profile data for:', userId);
@@ -165,7 +166,7 @@ export const saveUserProfileData = async (
       headers: { 
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ quizAnswers, memeReactions })
+      body: JSON.stringify({ quizAnswers, memeReactions, profileComplete })
     });
 
     if (response.ok) {

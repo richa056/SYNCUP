@@ -22,17 +22,60 @@ const MEME_REACTION_WEIGHT = 10;          // per identical reaction
 const MEME_ENGAGEMENT_BONUS = 10;         // both engaged with memes
 const PROVIDER_COMPAT_BONUS = 15;         // provider preference alignment
 
+// New: Upsert user and return Mongo _id so frontend saves use a valid id
+router.post('/sync', async (req, res) => {
+  try {
+    const { provider, providerId, email, name, avatarUrl } = req.body || {};
+    if (!provider || !email) {
+      return res.status(400).json({ error: 'provider and email are required' });
+    }
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = new User({
+        provider: provider.toLowerCase(),
+        providerId: providerId || email,
+        email,
+        name: name || email.split('@')[0],
+        avatarUrl,
+      });
+      await user.save();
+      console.log('✅ Created new user via /sync:', email);
+    } else {
+      // ensure provider fields are filled
+      user.provider = user.provider || provider.toLowerCase();
+      user.providerId = user.providerId || providerId || email;
+      if (name && user.name !== name) user.name = name;
+      if (avatarUrl && user.avatarUrl !== avatarUrl) user.avatarUrl = avatarUrl;
+      await user.save();
+      console.log('🔄 Synced existing user via /sync:', email);
+    }
+
+    res.json({
+      id: user._id,
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      provider: user.provider,
+      avatarUrl: user.avatarUrl,
+    });
+  } catch (err) {
+    console.error('Error in /api/users/sync:', err);
+    res.status(500).json({ error: 'Failed to sync user' });
+  }
+});
+
 // Helper function to determine if answers are similar
 const areAnswersSimilar = (answer1, answer2) => {
   const similarGroups = {
-    workSchedule: ['☀️ Morning Maverick', '🌙 Night Owl Ninja', '🌅 Flexible Fighter'],
-    terminalStyle: ['🎨 Zsh/Fish Customizer', '🚀 Warp/Fig Magician'],
-    projectManagement: ['Git Guru', 'Notion Nerd', 'Kanban King'],
+    workSchedule: ['Morning', 'Night', 'Flexible'],
+    terminalStyle: ['Customized Zsh/Fish', 'Default Bash', 'Modern GUI terminal'],
+    projectManagement: ['Kanban board', 'GitHub Issues', 'Documentation-first'],
     uiPreference: ['Light', 'Dark'],
     codeStyle: ['Tabs', 'Spaces'],
-    stateManagement: ['⚛️ Context API', '🐻 Zustand/Jotai', '🔄 Redux Saga'],
-    namingConvention: ['camelCaseChampion', 'PascalCasePioneer', 'snake_case_selector'],
-    workEnvironment: ['💻 Minimalist Laptop', '🏙️ Multi-Monitor Command Center', '☕ Cozy Coffee Shop']
+    stateManagement: ['Context API', 'Zustand/Jotai', 'Redux/Redux-Saga'],
+    namingConvention: ['camelCase', 'PascalCase', 'snake_case'],
+    workEnvironment: ['Single laptop', 'Multi‑monitor desk', 'Coffee shop/Co‑working']
   };
   
   for (const [category, answers] of Object.entries(similarGroups)) {
@@ -43,13 +86,13 @@ const areAnswersSimilar = (answer1, answer2) => {
   
   // Also consider answers that are close in meaning
   const meaningSimilar = {
-    '☀️ Morning Maverick': ['🌅 Flexible Fighter'],
-    '🌙 Night Owl Ninja': ['🌅 Flexible Fighter'],
-    '🎨 Zsh/Fish Customizer': ['🚀 Warp/Fig Magician'],
-    'Git Guru': ['Notion Nerd'],
+    'Morning': ['Flexible'],
+    'Night': ['Flexible'],
+    'Customized Zsh/Fish': ['Modern GUI terminal'],
+    'GitHub Issues': ['Documentation-first'],
     'Tabs': ['Spaces'],
     'Light': ['Dark'],
-    '💻 Minimalist Laptop': ['☕ Cozy Coffee Shop']
+    'Single laptop': ['Coffee shop/Co‑working']
   };
   
   if (meaningSimilar[answer1] && meaningSimilar[answer1].includes(answer2)) {
@@ -64,25 +107,27 @@ const generateTraitsFromQuiz = (quizAnswers, memeReactions) => {
   const traits = [];
   
   if (quizAnswers) {
-    if (quizAnswers[1] === '☀️ Morning Maverick') traits.push('Early Bird', 'Morning Person');
-    if (quizAnswers[1] === '🌙 Night Owl Ninja') traits.push('Night Owl', 'Late Night Coder');
-    
-    if (quizAnswers[2] === '🎨 Zsh/Fish Customizer') traits.push('Terminal Artist', 'Custom Enthusiast');
-    if (quizAnswers[2] === '🚀 Warp/Fig Magician') traits.push('Modern Tools', 'Innovation Seeker');
-    
+    if (quizAnswers[1] === 'Morning') traits.push('Early Bird', 'Morning Person');
+    if (quizAnswers[1] === 'Night') traits.push('Night Owl', 'Late Night Coder');
+    if (quizAnswers[1] === 'Flexible') traits.push('Flexible Schedule');
+
+    if (quizAnswers[2] === 'Customized Zsh/Fish') traits.push('Terminal Customizer', 'CLI Enthusiast');
+    if (quizAnswers[2] === 'Default Bash') traits.push('Simplicity Lover');
+    if (quizAnswers[2] === 'Modern GUI terminal') traits.push('Modern Tools', 'Innovation Seeker');
+
     if (quizAnswers[4] === 'Spaces') traits.push('Clean Code', 'Format Enthusiast');
     if (quizAnswers[4] === 'Tabs') traits.push('Efficient', 'Quick Coder');
-    
-    if (quizAnswers[5] === 'Git Guru') traits.push('Version Control Expert', 'Git Master');
-    if (quizAnswers[5] === 'Kanban King') traits.push('Visual Organizer', 'Project Manager');
-    if (quizAnswers[5] === 'Notion Nerd') traits.push('Documentation Lover', 'Organized');
-    
+
+    if (quizAnswers[5] === 'GitHub Issues') traits.push('Version Control Oriented');
+    if (quizAnswers[5] === 'Kanban board') traits.push('Visual Organizer', 'Project Manager');
+    if (quizAnswers[5] === 'Documentation-first') traits.push('Documentation Lover', 'Organized');
+
     if (quizAnswers[7] === 'Dark') traits.push('Dark Theme Lover', 'Night Mode');
     if (quizAnswers[7] === 'Light') traits.push('Light Theme Lover', 'Day Mode');
-    
-    if (quizAnswers[10] === '💻 Minimalist Laptop') traits.push('Minimalist', 'Portable');
-    if (quizAnswers[10] === '🏙️ Multi-Monitor Command Center') traits.push('Power User', 'Multi-Tasker');
-    if (quizAnswers[10] === '☕ Cozy Coffee Shop') traits.push('Social Coder', 'Networking');
+
+    if (quizAnswers[10] === 'Single laptop') traits.push('Minimalist', 'Portable');
+    if (quizAnswers[10] === 'Multi‑monitor desk') traits.push('Power User', 'Multi-Tasker');
+    if (quizAnswers[10] === 'Coffee shop/Co‑working') traits.push('Social Coder', 'Networking');
   }
   
   if (memeReactions) {
@@ -101,32 +146,124 @@ const generateTraitsFromQuiz = (quizAnswers, memeReactions) => {
   return [...new Set(traits)]; // Remove duplicates
 };
 
-// Update user profile with quiz answers and meme reactions
+// Generate badges and codename from quiz answers
+const generateProfileFromQuiz = (quizAnswers) => {
+  const traits = generateTraitsFromQuiz(quizAnswers || {}, []);
+  const badges = [];
+  if (quizAnswers) {
+    if (quizAnswers[5] === 'GitHub Issues') badges.push('Version Control Oriented');
+    if (quizAnswers[7] === 'Dark') badges.push('Dark Theme Aficionado');
+    if (quizAnswers[4] === 'Spaces') badges.push('Clean Formatter');
+    if (quizAnswers[1] === 'Night') badges.push('Night Coder');
+    if (quizAnswers[2] === 'Modern GUI terminal') badges.push('Modern Terminal User');
+  }
+  const base = quizAnswers?.[1] === 'Night' ? 'Night' : (quizAnswers?.[1] === 'Morning' ? 'Sun' : 'Flex');
+  const code = Math.random().toString(36).substr(2, 4).toUpperCase();
+  const codename = `${base}_${code}`;
+  return { traits, badges: badges.length ? badges : ['Developer'], codename };
+};
+
+// Compute DevDNA cosine similarity percent [0..100]
+const computeDevDnaSimilarityPercent = (dnaA, dnaB) => {
+  if (!dnaA || !dnaB) return 0;
+  const mapA = new Map((dnaA.topLanguages || []).map(({ lang, value }) => [lang, Number(value) || 0]));
+  const mapB = new Map((dnaB.topLanguages || []).map(({ lang, value }) => [lang, Number(value) || 0]));
+  const langs = new Set([...mapA.keys(), ...mapB.keys()]);
+  const vecA = [];
+  const vecB = [];
+  for (const lang of langs) {
+    vecA.push(mapA.get(lang) || 0);
+    vecB.push(mapB.get(lang) || 0);
+  }
+  const dot = vecA.reduce((acc, v, i) => acc + v * vecB[i], 0);
+  const normA = Math.sqrt(vecA.reduce((acc, v) => acc + v * v, 0)) || 1;
+  const normB = Math.sqrt(vecB.reduce((acc, v) => acc + v * v, 0)) || 1;
+  const cosine = dot / (normA * normB);
+  const bounded = Math.max(0, Math.min(1, isNaN(cosine) ? 0 : cosine));
+  return Math.round(bounded * 100);
+};
+
+const DEVDNA_PERCENT_WEIGHT = Number(process.env.DEVDNA_PERCENT_WEIGHT || 10); // contribute up to X percent
+
+// Simple MMR diversity reranking
+const mmrRerank = (items, k = 3, lambda = Number(process.env.MMR_LAMBDA || 0.7)) => {
+  const selected = [];
+  const remaining = [...items];
+  const similarityBetween = (a, b) => {
+    const setA = new Set(a.matchingTraits || []);
+    const setB = new Set(b.matchingTraits || []);
+    const inter = [...setA].filter(x => setB.has(x)).length;
+    const union = new Set([...setA, ...setB]).size || 1;
+    return inter / union; // Jaccard
+  };
+  while (selected.length < k && remaining.length > 0) {
+    let best = null;
+    let bestScore = -Infinity;
+    for (const cand of remaining) {
+      const relevance = cand.similarityScore;
+      const redundancy = selected.length ? Math.max(...selected.map(s => similarityBetween(cand, s))) : 0;
+      const mmrScore = lambda * relevance - (1 - lambda) * (redundancy * 100);
+      if (mmrScore > bestScore) {
+        bestScore = mmrScore;
+        best = cand;
+      }
+    }
+    selected.push(best);
+    const idx = remaining.indexOf(best);
+    if (idx >= 0) remaining.splice(idx, 1);
+  }
+  return selected;
+};
+
+// Update user profile with quiz answers and meme reactions (partial updates allowed)
 router.put('/:userId/profile', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { quizAnswers, memeReactions } = req.body;
+    const { quizAnswers, memeReactions, profileComplete } = req.body;
     
     console.log('🔄 Profile update request for user:', userId);
-    console.log('📝 Quiz answers:', Object.keys(quizAnswers || {}).length);
-    console.log('😄 Meme reactions:', (memeReactions || []).length);
+    console.log('📝 Incoming quiz answers:', Object.keys(quizAnswers || {}).length);
+    console.log('😄 Incoming meme reactions:', (memeReactions || []).length);
     
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { 
-        quizAnswers, 
-        memeReactions,
-        profileComplete: true, // Mark profile as complete
-        traits: generateTraitsFromQuiz(quizAnswers, memeReactions)
-      },
-      { new: true, runValidators: true }
-    );
-    
-    if (!updatedUser) {
+    const user = await User.findById(userId);
+    if (!user) {
       console.error('❌ User not found:', userId);
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
+    // Merge quiz answers
+    if (quizAnswers && typeof quizAnswers === 'object') {
+      user.quizAnswers = { ...(user.quizAnswers || {}), ...quizAnswers };
+      // Update traits/badges/codename from answers (avoid mock defaults)
+      const prof = generateProfileFromQuiz(user.quizAnswers);
+      user.traits = prof.traits;
+      user.badges = prof.badges;
+      if (!user.codename || user.codename.startsWith('Dev_')) {
+        user.codename = prof.codename;
+      }
+    }
+
+    // Merge meme reactions by memeId (replace reaction for same memeId)
+    if (Array.isArray(memeReactions) && memeReactions.length > 0) {
+      const byId = new Map();
+      for (const r of (user.memeReactions || [])) {
+        byId.set(r.memeId, r);
+      }
+      for (const r of memeReactions) {
+        byId.set(r.memeId, { memeId: r.memeId, reaction: r.reaction });
+      }
+      user.memeReactions = Array.from(byId.values());
+    }
+
+    // Only set profileComplete if explicitly provided; else preserve current
+    if (typeof profileComplete === 'boolean') {
+      user.profileComplete = profileComplete;
+    }
+
+    // Update traits opportunistically based on latest data
+    user.traits = generateTraitsFromQuiz(user.quizAnswers || {}, user.memeReactions || []);
+
+    const updatedUser = await user.save();
     console.log('✅ Profile updated successfully for:', updatedUser.name);
     res.json(updatedUser);
     
@@ -157,100 +294,69 @@ router.post('/similar', async (req, res) => {
       return res.json([]);
     }
     
-    // Calculate similarity scores for each potential match
+    // Calculate similarity scores for each potential match (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
-      let similarityScore = 0;
-      let commonAnswers = 0;
-      let commonReactions = 0;
       const matchingTraits = [];
-      
-      console.log(`\n🔍 Analyzing match: ${match.name} (${match._id})`);
-      
-      // Compare quiz answers with hidden weights
-      for (const [questionId, userAnswer] of Object.entries(quizAnswers)) {
-        const matchAnswer = match.quizAnswers[questionId];
-        if (userAnswer && matchAnswer) {
-          const weight = QUESTION_WEIGHTS[Number(questionId)] || 0.5;
-          if (userAnswer === matchAnswer) {
-            similarityScore += Math.round(40 * weight);
-            commonAnswers++;
-            matchingTraits.push(`Same answer on question ${questionId}`);
-          } else if (areAnswersSimilar(userAnswer, matchAnswer)) {
-            similarityScore += Math.round(25 * weight);
-            matchingTraits.push(`Similar preference on question ${questionId}`);
-          } else {
-            similarityScore += Math.round(5 * weight);
-          }
-        }
+
+      // Quiz similarity percent
+      const quizPercent = computeQuizSimilarityPercent(quizAnswers || {}, match.quizAnswers || {});
+      if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) {
+        matchingTraits.push(`High quiz match (${quizPercent}%)`);
       }
-      
-      // Compare meme reactions
-      const userReactions = new Set(memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      const matchReactions = new Set(match.memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      
+
+      // DevDNA similarity
+      const devDnaPercent = computeDevDnaSimilarityPercent({ topLanguages: [] }, match.devDna || {});
+      const devDnaContribution = Math.round((devDnaPercent / 100) * DEVDNA_PERCENT_WEIGHT);
+      if (devDnaContribution > 0) matchingTraits.push(`DevDNA similarity (+${devDnaContribution}%)`);
+
+      // Meme reactions contribution (percent)
+      const userReactions = new Set((memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
+      const matchReactions = new Set((match.memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
       const commonReactionsList = [...userReactions].filter(r => matchReactions.has(r));
-      commonReactions = commonReactionsList.length;
-      
-      if (commonReactions > 0) {
-        similarityScore += Math.min(50, commonReactions * MEME_REACTION_WEIGHT);
-        matchingTraits.push(`${commonReactions} similar meme reactions`);
-      }
-      
+      const memePercentRaw = (commonReactionsList.length || 0) * MEME_PERCENT_PER_MATCH;
+      const memePercent = Math.min(MEME_PERCENT_CAP, memePercentRaw);
+      if (memePercent > 0) matchingTraits.push(`${commonReactionsList.length} similar meme reactions (+${memePercent}%)`);
+
       // Engagement bonus
-      if (memeReactions.length > 0 && match.memeReactions.length > 0) {
-        similarityScore += MEME_ENGAGEMENT_BONUS;
-        matchingTraits.push('Both engaged with memes');
-      }
-      
+      const engaged = (memeReactions || []).length > 0 && (match.memeReactions || []).length > 0;
+      const engagementBonus = engaged ? MEME_ENGAGEMENT_BONUS : 0;
+      if (engagementBonus > 0) matchingTraits.push('Both engaged with memes');
+
       // Provider compatibility bonus
-      if (match.provider === 'github' && quizAnswers[5] === 'Git Guru') {
-        similarityScore += PROVIDER_COMPAT_BONUS;
+      let providerBonus = 0;
+      if (match.provider === 'github' && quizAnswers && quizAnswers[5] === 'Git Guru') {
+        providerBonus += PROVIDER_COMPAT_BONUS;
         matchingTraits.push('Both value version control');
       }
-      
-      if (match.provider === 'linkedin' && quizAnswers[10] === '☕ Cozy Coffee Shop') {
-        similarityScore += PROVIDER_COMPAT_BONUS;
+      if (match.provider === 'linkedin' && quizAnswers && quizAnswers[10] === '☕ Cozy Coffee Shop') {
+        providerBonus += PROVIDER_COMPAT_BONUS;
         matchingTraits.push('Both appreciate networking');
       }
-      
-      // Work schedule compatibility
-      if (quizAnswers[1] === match.quizAnswers[1]) {
-        similarityScore += 20;
-        matchingTraits.push('Same work schedule');
-      }
-      
-      // Terminal style compatibility
-      if (quizAnswers[2] === match.quizAnswers[2]) {
-        similarityScore += 15;
-        matchingTraits.push('Same terminal style');
-      }
-      
-      // Determine compatibility level
+
+      // Final normalized score
+      const similarityScore = Math.max(0, Math.min(100, Math.round(quizPercent + memePercent + engagementBonus + providerBonus + devDnaContribution)));
+
+      // Compatibility label
       let compatibility = 'low';
-      if (similarityScore >= 40) compatibility = 'high';
-      else if (similarityScore >= 20) compatibility = 'medium';
-      
-              console.log(`   Final score: ${similarityScore} (${compatibility} compatibility)`);
-        console.log(`   Matching traits:`, matchingTraits);
-        
-        return {
-          userId: match._id,
-          user: {
-            ...match.toObject(),
-            id: match._id
-          },
-          similarityScore,
-          commonAnswers,
-          commonReactions,
-          matchingTraits,
-          compatibility
-        };
+      if (similarityScore >= 80) compatibility = 'high';
+      else if (similarityScore >= 50) compatibility = 'medium';
+
+      return {
+        userId: match._id,
+        user: { ...match.toObject(), id: match._id },
+        similarityScore,
+        quizPercent,
+        memePercent,
+        engagementBonus,
+        providerBonus,
+        matchingTraits,
+        compatibility
+      };
     });
     
-    // Sort by similarity score (highest first) and return minimum 3 matches
+    // Sort by similarity score (highest first) and return exactly top 3 matches if possible
     const sortedMatches = scoredMatches.sort((a, b) => b.similarityScore - a.similarityScore);
-    const minMatches = Math.min(3, potentialMatches.length);
-    const topMatches = sortedMatches.slice(0, Math.max(minMatches, 3));
+    const topMatches = mmrRerank(sortedMatches, Math.min(3, sortedMatches.length));
     
     console.log(`🎯 Top ${topMatches.length} matches found with scores:`, topMatches.map(m => `${m.user.name}: ${m.similarityScore}`));
     
@@ -289,58 +395,47 @@ router.post('/realtime-match', async (req, res) => {
       return res.json({ message: 'No other users found yet', matches: [] });
     }
     
-    // Calculate similarity scores
+    // Calculate similarity scores (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
-      let similarityScore = 0;
       const matchingTraits = [];
-      
-      // Compare quiz answers with weights
-      for (const [questionId, userAnswer] of Object.entries(currentUser.quizAnswers)) {
-        const matchAnswer = match.quizAnswers[questionId];
-        if (userAnswer && matchAnswer) {
-          const weight = QUESTION_WEIGHTS[Number(questionId)] || 0.5;
-          if (userAnswer === matchAnswer) {
-            similarityScore += Math.round(40 * weight);
-            matchingTraits.push(`Same answer on question ${questionId}`);
-          } else if (areAnswersSimilar(userAnswer, matchAnswer)) {
-            similarityScore += Math.round(25 * weight);
-            matchingTraits.push(`Similar preference on question ${questionId}`);
-          } else {
-            similarityScore += Math.round(5 * weight);
-          }
-        }
-      }
-      
-      // Compare meme reactions
-      const userReactions = new Set(currentUser.memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      const matchReactions = new Set(match.memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      
+
+      const quizPercent = computeQuizSimilarityPercent(currentUser.quizAnswers || {}, match.quizAnswers || {});
+      if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) matchingTraits.push(`High quiz match (${quizPercent}%)`);
+
+      const userReactions = new Set((currentUser.memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
+      const matchReactions = new Set((match.memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
       const commonReactions = [...userReactions].filter(r => matchReactions.has(r));
-      if (commonReactions.length > 0) {
-        similarityScore += Math.min(50, commonReactions.length * MEME_REACTION_WEIGHT);
-        matchingTraits.push(`${commonReactions.length} similar meme reactions`);
-      }
-      
-      // Engagement bonus
-      if (currentUser.memeReactions.length > 0 && match.memeReactions.length > 0) {
-        similarityScore += MEME_ENGAGEMENT_BONUS;
-        matchingTraits.push('Both engaged with memes');
-      }
-      
+      const memePercent = Math.min(MEME_PERCENT_CAP, (commonReactions.length || 0) * MEME_PERCENT_PER_MATCH);
+      if (memePercent > 0) matchingTraits.push(`${commonReactions.length} similar meme reactions (+${memePercent}%)`);
+
+      const devDnaPercent = computeDevDnaSimilarityPercent(currentUser.devDna || {}, match.devDna || {});
+      const devDnaContribution = Math.round((devDnaPercent / 100) * DEVDNA_PERCENT_WEIGHT);
+      if (devDnaContribution > 0) matchingTraits.push(`DevDNA similarity (+${devDnaContribution}%)`);
+
+      const engaged = (currentUser.memeReactions || []).length > 0 && (match.memeReactions || []).length > 0;
+      const engagementBonus = engaged ? MEME_ENGAGEMENT_BONUS : 0;
+      if (engagementBonus > 0) matchingTraits.push('Both engaged with memes');
+
+      const similarityScore = Math.max(0, Math.min(100, Math.round(quizPercent + memePercent + engagementBonus + devDnaContribution)));
+      let compatibility = 'low';
+      if (similarityScore >= 80) compatibility = 'high';
+      else if (similarityScore >= 50) compatibility = 'medium';
+
       return {
         userId: match._id,
-        user: {
-          ...match.toObject(),
-          id: match._id
-        },
+        user: { ...match.toObject(), id: match._id },
         similarityScore,
-        matchingTraits
+        quizPercent,
+        memePercent,
+        engagementBonus,
+        matchingTraits,
+        compatibility
       };
     });
     
-    // Sort and return top matches
+    // Sort and return exactly top 3 matches if possible
     const sortedMatches = scoredMatches.sort((a, b) => b.similarityScore - a.similarityScore);
-    const topMatches = sortedMatches.slice(0, Math.max(3, potentialMatches.length));
+    const topMatches = mmrRerank(sortedMatches, Math.min(3, sortedMatches.length));
     
     console.log(`🔄 Real-time matches found:`, topMatches.map(m => `${m.user.name}: ${m.similarityScore}`));
     
@@ -380,58 +475,43 @@ router.post('/refresh-matches', async (req, res) => {
       return res.json({ message: 'No other users found yet', matches: [] });
     }
     
-    // Calculate similarity scores
+    // Calculate similarity scores (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
-      let similarityScore = 0;
       const matchingTraits = [];
-      
-      // Compare quiz answers with weights
-      for (const [questionId, userAnswer] of Object.entries(currentUser.quizAnswers)) {
-        const matchAnswer = match.quizAnswers[questionId];
-        if (userAnswer && matchAnswer) {
-          const weight = QUESTION_WEIGHTS[Number(questionId)] || 0.5;
-          if (userAnswer === matchAnswer) {
-            similarityScore += Math.round(40 * weight);
-            matchingTraits.push(`Same answer on question ${questionId}`);
-          } else if (areAnswersSimilar(userAnswer, matchAnswer)) {
-            similarityScore += Math.round(25 * weight);
-            matchingTraits.push(`Similar preference on question ${questionId}`);
-          } else {
-            similarityScore += Math.round(5 * weight);
-          }
-        }
-      }
-      
-      // Compare meme reactions
-      const userReactions = new Set(currentUser.memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      const matchReactions = new Set(match.memeReactions.map(r => `${r.memeId}:${r.reaction}`));
-      
+
+      const quizPercent = computeQuizSimilarityPercent(currentUser.quizAnswers || {}, match.quizAnswers || {});
+      if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) matchingTraits.push(`High quiz match (${quizPercent}%)`);
+
+      const userReactions = new Set((currentUser.memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
+      const matchReactions = new Set((match.memeReactions || []).map(r => `${r.memeId}:${r.reaction}`));
       const commonReactions = [...userReactions].filter(r => matchReactions.has(r));
-      if (commonReactions.length > 0) {
-        similarityScore += Math.min(50, commonReactions.length * MEME_REACTION_WEIGHT);
-        matchingTraits.push(`${commonReactions.length} similar meme reactions`);
-      }
-      
-      // Engagement bonus
-      if (currentUser.memeReactions.length > 0 && match.memeReactions.length > 0) {
-        similarityScore += MEME_ENGAGEMENT_BONUS;
-        matchingTraits.push('Both engaged with memes');
-      }
-      
+      const memePercent = Math.min(MEME_PERCENT_CAP, (commonReactions.length || 0) * MEME_PERCENT_PER_MATCH);
+      if (memePercent > 0) matchingTraits.push(`${commonReactions.length} similar meme reactions (+${memePercent}%)`);
+
+      const engaged = (currentUser.memeReactions || []).length > 0 && (match.memeReactions || []).length > 0;
+      const engagementBonus = engaged ? MEME_ENGAGEMENT_BONUS : 0;
+      if (engagementBonus > 0) matchingTraits.push('Both engaged with memes');
+
+      const similarityScore = Math.max(0, Math.min(100, Math.round(quizPercent + memePercent + engagementBonus)));
+      let compatibility = 'low';
+      if (similarityScore >= 80) compatibility = 'high';
+      else if (similarityScore >= 50) compatibility = 'medium';
+
       return {
         userId: match._id,
-        user: {
-          ...match.toObject(),
-          id: match._id
-        },
+        user: { ...match.toObject(), id: match._id },
         similarityScore,
-        matchingTraits
+        quizPercent,
+        memePercent,
+        engagementBonus,
+        matchingTraits,
+        compatibility
       };
     });
     
-    // Sort and return top matches
+    // Sort and return exactly top 3 matches if possible
     const sortedMatches = scoredMatches.sort((a, b) => b.similarityScore - a.similarityScore);
-    const topMatches = sortedMatches.slice(0, Math.max(3, potentialMatches.length));
+    const topMatches = sortedMatches.slice(0, Math.min(3, sortedMatches.length));
     
     console.log(`🔄 Refresh matches found:`, topMatches.map(m => `${m.user.name}: ${m.similarityScore}`));
     
@@ -482,6 +562,31 @@ router.get('/debug/all-users', async (req, res) => {
   } catch (error) {
     console.error('Error fetching debug user data:', error);
     res.status(500).json({ error: 'Failed to fetch debug data' });
+  }
+});
+
+// Debug: Get connection state for current user (for testing)
+router.get('/debug/connections', async (req, res) => {
+  try {
+    // Get all users and their connection states
+    const users = await User.find({}).select('name email connectionRequestsSent connectionRequestsIncoming mutualConnections').lean();
+    
+    const connectionSummary = users.map(user => ({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      sent: user.connectionRequestsSent || [],
+      incoming: user.connectionRequestsIncoming || [],
+      mutual: user.mutualConnections || []
+    }));
+    
+    res.json({
+      totalUsers: users.length,
+      connections: connectionSummary
+    });
+  } catch (e) {
+    console.error('Debug connections error:', e);
+    res.status(500).json({ error: 'Failed to get debug info' });
   }
 });
 
@@ -596,6 +701,184 @@ router.get('/debug/test-matching/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error testing matching:', error);
     res.status(500).json({ error: 'Failed to test matching' });
+  }
+});
+
+// New: return raw potential matches (used by frontend mongoMatchingService)
+router.post('/matches', async (req, res) => {
+  try {
+    const { currentUserId, excludeIds = [] } = req.body;
+
+    const filter = {
+      _id: { $ne: currentUserId, $nin: excludeIds },
+      profileComplete: true,
+      quizAnswers: { $exists: true, $ne: {} },
+      memeReactions: { $exists: true, $ne: [] }
+    };
+
+    const potentialMatches = await User.find(filter)
+      .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions')
+      .limit(3);
+
+    res.json(potentialMatches);
+  } catch (error) {
+    console.error('Error fetching potential matches:', error);
+    res.status(500).json({ error: 'Failed to fetch potential matches' });
+  }
+});
+
+// Record a pass
+router.post('/pass', async (req, res) => {
+  try {
+    const { userId, passedUserId } = req.body;
+    if (!userId || !passedUserId || userId === passedUserId) return res.status(400).json({ error: 'Invalid ids' });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const set = new Set((user.passedMatches || []).map(id => String(id)));
+    if (!set.has(String(passedUserId))) {
+      user.passedMatches.push(passedUserId);
+      await user.save();
+    }
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('pass error', e);
+    res.status(500).json({ error: 'Failed to record pass' });
+  }
+});
+
+// Send a connection request
+router.post('/connections/request', async (req, res) => {
+  try {
+    const { fromUserId, toUserId } = req.body;
+    if (!fromUserId || !toUserId || fromUserId === toUserId) {
+      return res.status(400).json({ error: 'Invalid user ids' });
+    }
+
+    const [fromUser, toUser] = await Promise.all([
+      User.findById(fromUserId),
+      User.findById(toUserId)
+    ]);
+    if (!fromUser || !toUser) return res.status(404).json({ error: 'User not found' });
+
+    // Block request if receiver has passed the sender
+    const receiverPassed = new Set((toUser.passedMatches || []).map(id => String(id)));
+    if (receiverPassed.has(String(fromUser._id))) {
+      return res.status(403).json({ error: 'User has passed you' });
+    }
+
+    // Prevent duplicates
+    const sentSet = new Set((fromUser.connectionRequestsSent || []).map(id => String(id)));
+    const incomingSet = new Set((toUser.connectionRequestsIncoming || []).map(id => String(id)));
+    if (!sentSet.has(String(toUser._id))) fromUser.connectionRequestsSent.push(toUser._id);
+    if (!incomingSet.has(String(fromUser._id))) toUser.connectionRequestsIncoming.push(fromUser._id);
+
+    await Promise.all([fromUser.save(), toUser.save()]);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('send request error', e);
+    res.status(500).json({ error: 'Failed to send request' });
+  }
+});
+
+// Accept a connection request
+router.post('/connections/accept', async (req, res) => {
+  try {
+    const { userId, fromUserId } = req.body; // userId accepts from fromUserId
+    const [user, fromUser] = await Promise.all([
+      User.findById(userId),
+      User.findById(fromUserId)
+    ]);
+    if (!user || !fromUser) return res.status(404).json({ error: 'User not found' });
+
+    // Remove from incoming/sent
+    user.connectionRequestsIncoming = (user.connectionRequestsIncoming || []).filter(id => String(id) !== String(fromUser._id));
+    fromUser.connectionRequestsSent = (fromUser.connectionRequestsSent || []).filter(id => String(id) !== String(user._id));
+
+    // Add to mutual
+    const aSet = new Set((user.mutualConnections || []).map(id => String(id)));
+    const bSet = new Set((fromUser.mutualConnections || []).map(id => String(id)));
+    if (!aSet.has(String(fromUser._id))) user.mutualConnections.push(fromUser._id);
+    if (!bSet.has(String(user._id))) fromUser.mutualConnections.push(user._id);
+
+    await Promise.all([user.save(), fromUser.save()]);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('accept request error', e);
+    res.status(500).json({ error: 'Failed to accept request' });
+  }
+});
+
+// Reject a connection request
+router.post('/connections/reject', async (req, res) => {
+  try {
+    const { userId, fromUserId } = req.body;
+    const [user, fromUser] = await Promise.all([
+      User.findById(userId),
+      User.findById(fromUserId)
+    ]);
+    if (!user || !fromUser) return res.status(404).json({ error: 'User not found' });
+
+    user.connectionRequestsIncoming = (user.connectionRequestsIncoming || []).filter(id => String(id) !== String(fromUser._id));
+    fromUser.connectionRequestsSent = (fromUser.connectionRequestsSent || []).filter(id => String(id) !== String(user._id));
+
+    await Promise.all([user.save(), fromUser.save()]);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('reject request error', e);
+    res.status(500).json({ error: 'Failed to reject request' });
+  }
+});
+
+// Get connection state for a user
+router.get('/connections/state/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const includeProfiles = String(req.query.includeProfiles || 'false') === 'true';
+
+    const user = await User.findById(userId).select('connectionRequestsSent connectionRequestsIncoming mutualConnections');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const payload = {
+      sent: user.connectionRequestsSent || [],
+      incoming: user.connectionRequestsIncoming || [],
+      mutual: user.mutualConnections || []
+    };
+
+    if (includeProfiles) {
+      const [sentDocs, incomingDocs, mutualDocs] = await Promise.all([
+        User.find({ _id: { $in: payload.sent } }).select('name avatarUrl codename').lean(),
+        User.find({ _id: { $in: payload.incoming } }).select('name avatarUrl codename').lean(),
+        User.find({ _id: { $in: payload.mutual } }).select('name avatarUrl codename').lean()
+      ]);
+      payload.sentProfiles = (sentDocs || []).map(d => ({ ...d, id: d._id }));
+      payload.incomingProfiles = (incomingDocs || []).map(d => ({ ...d, id: d._id }));
+      payload.mutualProfiles = (mutualDocs || []).map(d => ({ ...d, id: d._id }));
+    }
+
+    res.json(payload);
+  } catch (e) {
+    console.error('get state error', e);
+    res.status(500).json({ error: 'Failed to get state' });
+  }
+});
+
+// Public user profile (minimal fields) by id
+router.get('/public/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId)
+      .select('name avatarUrl codename badges traits provider profileRating trustLevel devDna');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ ...user.toObject(), id: user._id });
+  } catch (e) {
+    console.error('public profile error', e);
+    res.status(500).json({ error: 'Failed to load user' });
   }
 });
 

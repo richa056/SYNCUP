@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import apiRoutes from './routes/api.js';
 import linkedinAuthRoutes from './routes/linkedin-auth.js';
 import userRoutes from './routes/users.js';
+import messagingRoutes from './routes/messaging.js';
 
 dotenv.config();
 
@@ -19,7 +20,12 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: [/^http:\/\/localhost:5173$/, /^http:\/\/localhost:5174$/, /^http:\/\/localhost:5175$/],
+  origin: [
+    /^http:\/\/localhost(:\d+)?$/,
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+    // Allow private LAN ranges: 10.0.0.0/8, 172.16.0.0 - 172.31.0.0, 192.168.0.0/16
+    /^http:\/\/(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))(\.[0-9]{1,3}){2}(:\d+)?$/
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -30,6 +36,7 @@ app.use('/api', apiRoutes);
 app.use('/auth', linkedinAuthRoutes); // Custom LinkedIn OAuth routes (must come before authRoutes)
 app.use('/auth', authRoutes); // Regular auth routes (GitHub, Google)
 app.use('/api/users', userRoutes); // User matching and profile routes
+app.use('/api/messaging', messagingRoutes); // Real-time messaging routes
 
 app.get('/', (req, res) => {
     res.json({
@@ -51,5 +58,6 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = 3001;
+const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, HOST, () => console.log(`Server running on http://${HOST}:${PORT}`));

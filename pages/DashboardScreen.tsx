@@ -10,15 +10,27 @@ import {
   User, 
   Heart, 
   MessageSquare, 
-  Settings, 
   LogOut, 
   Users, 
   UserPlus,
   Home,
-  Bell
+  Bell,
+  MessageCircle
 } from 'lucide-react';
 
-type DashboardTab = 'matches' | 'profile' | 'connections' | 'settings';
+// helper to load minimal public profile by id
+const loadPublicProfile = async (userId: string) => {
+  try {
+    const res = await fetch(`/api/users/public/${userId}`);
+    if (!res.ok) throw new Error('failed');
+    const data = await res.json();
+    return { ...data, id: data.id || data._id } as any;
+  } catch {
+    return null;
+  }
+};
+
+type DashboardTab = 'matches' | 'profile' | 'connections';
 
 const DashboardScreen: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -39,35 +51,131 @@ const DashboardScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DashboardTab>('matches');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [currentProfile, setCurrentProfile] = useState<DeveloperProfile | null>(null);
-  
-  // Settings state
-  const [settings, setSettings] = useState(() => {
-    const savedSettings = localStorage.getItem('syncup_user_settings');
-    if (savedSettings) {
-      try {
-        return JSON.parse(savedSettings);
-      } catch (error) {
-        console.error('Error loading settings:', error);
+
+  // hydrated request profiles
+  const [incomingProfiles, setIncomingProfiles] = useState<any[]>([]);
+  const [sentProfiles, setSentProfiles] = useState<any[]>([]);
+  const [mutualProfiles, setMutualProfiles] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Prefer cache populated by context refresh
+    const cachedIncoming = localStorage.getItem('syncup_incoming_profiles_cache');
+    console.log('🔍 Dashboard: cachedIncoming =', cachedIncoming);
+    if (cachedIncoming) {
+      try { 
+        const parsed = JSON.parse(cachedIncoming);
+        console.log('🔍 Dashboard: parsed incoming profiles =', parsed);
+        setIncomingProfiles(parsed); 
+      } catch (e) {
+        console.error('🔍 Dashboard: failed to parse cached incoming profiles:', e);
       }
+    } else {
+      console.log('🔍 Dashboard: no cached incoming profiles, fetching from IDs:', Array.from(incomingRequests));
+      (async () => {
+        const ids = Array.from(incomingRequests) as string[];
+        const profiles = await Promise.all(ids.map(id => {
+          const existing = analyzedMatches.find(m => String(m.id) === String(id));
+          return existing ? existing : loadPublicProfile(id);
+        }));
+        console.log('🔍 Dashboard: fetched profiles from IDs:', profiles);
+        setIncomingProfiles(profiles.filter(Boolean) as any[]);
+      })();
     }
-    return {
-      notifications: {
-        newMatches: true,
-        connectionRequests: true,
-        newMessages: true
-      },
-      privacy: {
-        showProfile: true,
-        allowRequests: true,
-        showOnlineStatus: false
-      },
-      chat: {
-        readReceipts: true,
-        typingIndicators: true,
-        autoReply: false
+
+    // Listen for cache updates from context
+    const handleConnectionsUpdated = () => {
+      console.log('🔍 Dashboard: received connections updated event');
+      const updatedCache = localStorage.getItem('syncup_incoming_profiles_cache');
+      if (updatedCache) {
+        try {
+          const parsed = JSON.parse(updatedCache);
+          console.log('🔍 Dashboard: updating from event:', parsed);
+          setIncomingProfiles(parsed);
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse updated cache:', e);
+        }
       }
     };
-  });
+
+    window.addEventListener('syncup_connections_updated', handleConnectionsUpdated);
+    return () => window.removeEventListener('syncup_connections_updated', handleConnectionsUpdated);
+  }, [incomingRequests, analyzedMatches]);
+
+  useEffect(() => {
+    const cachedSent = localStorage.getItem('syncup_sent_profiles_cache');
+    if (cachedSent) {
+      try { setSentProfiles(JSON.parse(cachedSent)); } catch {}
+    } else {
+      (async () => {
+        const ids = Array.from(connectionRequests) as string[];
+        const profiles = await Promise.all(ids.map(id => {
+          const existing = analyzedMatches.find(m => String(m.id) === String(id));
+          return existing ? existing : loadPublicProfile(id);
+        }));
+        setSentProfiles(profiles.filter(Boolean) as any[]);
+      })();
+    }
+  }, [connectionRequests, analyzedMatches]);
+
+  // Load mutual profiles from cache
+  useEffect(() => {
+    const cachedMutual = localStorage.getItem('syncup_mutual_profiles_cache');
+    if (cachedMutual) {
+      try { 
+        const parsed = JSON.parse(cachedMutual);
+        console.log('🔍 Dashboard: loaded mutual profiles from cache:', parsed);
+        setMutualProfiles(parsed); 
+      } catch (e) {
+        console.error('🔍 Dashboard: failed to parse cached mutual profiles:', e);
+      }
+    }
+  }, []);
+
+  // Listen for cache updates from context
+  useEffect(() => {
+    const handleConnectionsUpdated = () => {
+      console.log('🔍 Dashboard: received connections updated event');
+      
+      // Refresh all profile types
+      const updatedIncoming = localStorage.getItem('syncup_incoming_profiles_cache');
+      const updatedSent = localStorage.getItem('syncup_sent_profiles_cache');
+      const updatedMutual = localStorage.getItem('syncup_mutual_profiles_cache');
+      
+      if (updatedIncoming) {
+        try {
+          const parsed = JSON.parse(updatedIncoming);
+          console.log('🔍 Dashboard: updating incoming from event:', parsed);
+          setIncomingProfiles(parsed);
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse updated incoming cache:', e);
+        }
+      }
+      
+      if (updatedSent) {
+        try {
+          const parsed = JSON.parse(updatedSent);
+          setSentProfiles(parsed);
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse updated sent cache:', e);
+        }
+      }
+      
+      if (updatedMutual) {
+        try {
+          const parsed = JSON.parse(updatedMutual);
+          console.log('🔍 Dashboard: updating mutual from event:', parsed);
+          setMutualProfiles(parsed);
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse updated mutual cache:', e);
+        }
+      }
+    };
+
+    window.addEventListener('syncup_connections_updated', handleConnectionsUpdated);
+    return () => window.removeEventListener('syncup_connections_updated', handleConnectionsUpdated);
+  }, []);
+  
+  // Settings removed – simplified UX
 
   // Set current profile when matches change
   useEffect(() => {
@@ -89,20 +197,11 @@ const DashboardScreen: React.FC = () => {
   const currentProfileConnectionState = currentProfile && currentProfile.id ? connectionRequests.has(currentProfile.id) : false;
   const currentProfileMutualState = currentProfile && currentProfile.id ? mutualConnections.has(currentProfile.id) : false;
 
-
-
-
-
-  // Save settings to localStorage
-  useEffect(() => {
-    localStorage.setItem('syncup_user_settings', JSON.stringify(settings));
-  }, [settings]);
+  // (settings removed)
 
   const handleLike = () => {
     if (currentProfile && currentProfile.id) {
       toggleLike(currentProfile.id);
-      // Don't automatically move to next profile - user must press Next button
-      // nextProfile(); // Removed automatic navigation
     } else {
       console.error('Cannot like profile: missing profile or profile ID');
     }
@@ -138,47 +237,88 @@ const DashboardScreen: React.FC = () => {
     navigate('/login');
   };
 
-
-
-  const handleSettingChange = (category: keyof typeof settings, setting: string, value: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [setting]: value
-      }
-    }));
-  };
+  // (settings removed)
 
   const handleEditProfile = () => {
-    // Navigate to profile editing (you can implement this later)
     alert('Profile editing feature coming soon!');
   };
 
-
-
-  // Function to test real-time chat functionality
   const testRealTimeChat = () => {
-    // First ensure we have a mutual connection
     if (mutualConnections.size === 0) {
       alert('You need a mutual connection first! Send a connection request to a profile and have it accepted.');
       return;
     }
-
-    // Get the first mutual connection
     const firstConnection = Array.from(mutualConnections)[0];
-    
-    // Navigate to chat
     navigate(`/chat/${firstConnection}`);
   };
 
-  const handleChangePassword = () => {
-    // Implement password change (you can implement this later)
-    alert('Password change feature coming soon!');
+  const handleAcceptRequest = (profileId: string) => {
+    acceptConnectionRequest(profileId);
+  };
+
+  const handleRejectRequest = (profileId: string) => {
+    rejectConnectionRequest(profileId);
   };
 
   const renderMatchesTab = () => (
     <div className="space-y-6">
+      {analyzedMatches.length === 0 ? (
+        <div className="text-center text-white max-w-3xl mx-auto p-8">
+          <Users className="w-16 h-16 mx-auto mb-6 opacity-50" />
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">🔍 No matches found yet</h2>
+          <div className="text-base md:text-lg opacity-80 mb-8 space-y-2">
+            <p>No developers with similar preferences found yet!</p>
+            <p className="text-sm opacity-70">
+              More developers are joining every day. Your answers are stored and will match with new users automatically.
+            </p>
+            <p className="text-xs opacity-50">
+              💡 Click refresh to check for new matches or try logging in with different accounts to test the system!
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center">
+            <motion.button
+              onClick={refreshMatches}
+              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🔄 Refresh Matches
+            </motion.button>
+            <motion.button
+              onClick={() => navigate('/onboarding')}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-green-600 transition-all shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              📝 Retake Onboarding
+            </motion.button>
+            <motion.button
+              onClick={() => setActiveTab('connections')}
+              className="px-6 py-3 bg-white/15 text-white rounded-xl font-semibold hover:bg-white/25 transition-all shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🤝 View Connections & Sent Requests
+            </motion.button>
+            <motion.button
+              onClick={() => setActiveTab('profile')}
+              className="px-6 py-3 bg-white/15 text-white rounded-xl font-semibold hover:bg-white/25 transition-all shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              ❤️ View Likes (Profile)
+            </motion.button>
+            <motion.button
+              onClick={handleLogout}
+              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-all shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🚪 Logout
+            </motion.button>
+          </div>
+        </div>
+      ) : (
       {/* Match Progress */}
       <div className="text-center text-white mb-6">
         <h2 className="text-2xl font-bold mb-2">Discover Matches</h2>
@@ -239,6 +379,7 @@ const DashboardScreen: React.FC = () => {
           </motion.button>
         </div>
       </div>
+      )}
     </div>
   );
 
@@ -287,347 +428,128 @@ const DashboardScreen: React.FC = () => {
   );
 
   const renderConnectionsTab = () => (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Sent Connection Requests */}
-      <div>
-        <h3 className="text-xl font-bold text-white mb-4">Sent Requests</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from(connectionRequests).map((requestId) => {
-            const profile = analyzedMatches.find(m => m.id === requestId);
-            if (!profile) return null;
-            
-            return (
-              <motion.div
-                key={requestId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/10 backdrop-blur-sm rounded-xl p-4"
-              >
-                <div className="flex items-center space-x-3 mb-3">
-                  <img
-                    src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&size=40&background=random`}
-                    alt={profile.name}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <h4 className="text-white font-semibold">{profile.name}</h4>
-                    <p className="text-white/70 text-sm">{profile.codename}</p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <span className="inline-block px-3 py-1 bg-orange-500 text-white text-xs rounded-full">
-                    Request Sent
-                  </span>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-        
-        {connectionRequests.size === 0 && (
-          <div className="text-center text-white/70 py-8">
-            <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No connection requests sent yet</p>
-            <p className="text-sm">Start liking profiles to send connection requests!</p>
-          </div>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-semibold text-white">Connections</h3>
+        <button
+          onClick={() => {
+            console.log('🔄 Manual refresh clicked');
+            // Trigger context refresh
+            window.dispatchEvent(new CustomEvent('syncup_manual_refresh'));
+          }}
+          className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm flex items-center gap-2"
+        >
+          🔄 Refresh
+        </button>
       </div>
-
-      {/* Incoming Connection Requests */}
-      <div>
-        <h3 className="text-xl font-bold text-white mb-4">Incoming Requests</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from(incomingRequests).map((requestId) => {
-            const profile = analyzedMatches.find(m => m.id === requestId);
-            if (!profile) return null;
-            
-            return (
-              <motion.div
-                key={requestId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/10 backdrop-blur-sm rounded-xl p-4"
-              >
-                <div className="flex items-center space-x-3 mb-3">
-                  <img
-                    src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&size=40&background=random`}
-                    alt={profile.name}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <h4 className="text-white font-semibold">{profile.name}</h4>
-                    <p className="text-white/70 text-sm">{profile.codename}</p>
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => acceptConnectionRequest(requestId)}
-                    className="flex-1 py-2 px-3 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => rejectConnectionRequest(requestId)}
-                    className="flex-1 py-2 px-3 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-        
-        {incomingRequests.size === 0 && (
-          <div className="text-center text-white/70 py-8">
-            <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No incoming connection requests</p>
-            <p className="text-sm">When someone sends you a request, it will appear here!</p>
-          </div>
-          )}
-      </div>
-
-      {/* Mutual Connections */}
-      <div>
-        <h3 className="text-xl font-bold text-white mb-4">Mutual Connections</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from(mutualConnections).map((connectionId) => {
-            const profile = analyzedMatches.find(m => m.id === connectionId);
-            if (!profile) return null;
-            
-            return (
-              <motion.div
-                key={connectionId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/10 backdrop-blur-sm rounded-xl p-4"
-              >
-                <div className="flex items-center space-x-3 mb-3">
-                  <img
-                    src={profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&size=40&background=random`}
-                    alt={profile.name}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <h4 className="text-white font-semibold">{profile.name}</h4>
-                    <p className="text-white/70 text-sm">{profile.codename}</p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <button
-                    onClick={() => handleChat(profile)}
-                    className="w-full py-2 px-3 bg-purple-500 text-white text-xs rounded-lg hover:bg-purple-600 transition-colors"
-                  >
-                    💬 Start Chat
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-        
-        {mutualConnections.size === 0 && (
-          <div className="text-center text-white/70 py-8">
-            <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No mutual connections yet</p>
-            <p className="text-sm">Accept connection requests to start chatting!</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderSettingsTab = () => (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h2 className="text-2xl font-bold text-white text-center mb-6">Settings</h2>
       
-      <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 space-y-4">
-        {/* Notification Preferences */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white mb-3">Notification Preferences</h3>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.notifications.newMatches}
-                onChange={(e) => handleSettingChange('notifications', 'newMatches', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>New match notifications</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.notifications.connectionRequests}
-                onChange={(e) => handleSettingChange('notifications', 'connectionRequests', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Connection request alerts</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.notifications.newMessages}
-                onChange={(e) => handleSettingChange('notifications', 'newMessages', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>New message notifications</span>
-            </label>
-          </div>
-        </div>
-
-        <hr className="border-white/20" />
-
-
-
-        <hr className="border-white/20" />
-
-        {/* Privacy Settings */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white mb-3">Privacy Settings</h3>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.privacy.showProfile}
-                onChange={(e) => handleSettingChange('privacy', 'showProfile', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Show my profile to other developers</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.privacy.allowRequests}
-                onChange={(e) => handleSettingChange('privacy', 'allowRequests', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Allow connection requests</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.privacy.showOnlineStatus}
-                onChange={(e) => handleSettingChange('privacy', 'showOnlineStatus', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Show online status</span>
-            </label>
-          </div>
-        </div>
-
-        <hr className="border-white/20" />
-
-        {/* Chat Preferences */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white mb-3">Chat Preferences</h3>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.chat.readReceipts}
-                onChange={(e) => handleSettingChange('chat', 'readReceipts', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Read receipts</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.chat.typingIndicators}
-                onChange={(e) => handleSettingChange('chat', 'typingIndicators', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Typing indicators</span>
-            </label>
-            <label className="flex items-center space-x-3 text-white">
-              <input 
-                type="checkbox" 
-                checked={settings.chat.autoReply}
-                onChange={(e) => handleSettingChange('chat', 'autoReply', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
-              />
-              <span>Auto-reply when busy</span>
-            </label>
-          </div>
-        </div>
-
-        <hr className="border-white/20" />
-
-        {/* Account Actions */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white mb-3">Account Actions</h3>
-          <div className="space-y-2">
-            <button 
-              onClick={handleEditProfile}
-              className="w-full text-left p-3 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <User className="w-5 h-5" />
-                <span>Edit Profile</span>
-              </div>
-            </button>
-            
-
-            
-            <button 
-              onClick={testRealTimeChat}
-              className="w-full text-left p-3 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <span>💬</span>
-                <span>Test Real-time Chat</span>
-              </div>
-            </button>
-            
-            <div className="mt-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <h4 className="text-blue-300 font-semibold mb-2">🌐 Real-time Testing Instructions:</h4>
-              <div className="text-blue-200/80 text-sm space-y-1">
-                <div>1. <strong>Tab 1:</strong> Login with LinkedIn/GitHub/Google</div>
-                <div>2. <strong>Tab 2:</strong> Login with DIFFERENT OAuth account</div>
-                <div>3. <strong>Both tabs:</strong> Complete onboarding (different answers)</div>
-                <div>4. <strong>Tab 1:</strong> Send connection request to Tab 2's profile</div>
-                <div>5. <strong>Tab 2:</strong> Accept the incoming request</div>
-                <div>6. <strong>Both tabs:</strong> Should update counts in real-time!</div>
-                <div>7. <strong>Test chat:</strong> Click "Test Real-time Chat" button</div>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Sent Requests */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+          <h4 className="text-lg font-medium text-white mb-3 flex items-center gap-2">
+            <User className="w-5 h-5" />
+            Sent Requests
+          </h4>
+          {sentProfiles.length > 0 ? (
+            <div className="space-y-3">
+              {sentProfiles.map((profile) => (
+                <div key={profile.id} className="bg-white/5 rounded-lg p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-semibold">
+                      {profile.name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{profile.name}</p>
+                      <p className="text-gray-300 text-sm">{profile.codename}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            
-            <div className="mt-4 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-              <h4 className="text-green-300 font-semibold mb-2">🎯 New Smart Matching System:</h4>
-              <div className="text-green-200/80 text-sm space-y-1">
-                <div>✅ <strong>Performance Analysis:</strong> 1-second metrics calculation</div>
-                <div>✅ <strong>Smart Matching:</strong> Find 3 most similar users</div>
-                <div>✅ <strong>Real-time Updates:</strong> Cross-tab synchronization</div>
-                <div>✅ <strong>MongoDB Integration:</strong> Scale to 300+ users</div>
-                <div>✅ <strong>Fallback System:</strong> Works even if DB fails</div>
-              </div>
+          ) : (
+            <p className="text-gray-400 text-sm">No connection requests sent yet. Start liking profiles to send connection requests!</p>
+          )}
+        </div>
+
+        {/* Incoming Requests */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+          <h4 className="text-lg font-medium text-white mb-3 flex items-center gap-2">
+            <MessageCircle className="w-5 h-5" />
+            Incoming Requests
+          </h4>
+          {incomingProfiles.length > 0 ? (
+            <div className="space-y-3">
+              {incomingProfiles.map((profile) => (
+                <div key={profile.id} className="bg-white/5 rounded-lg p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold">
+                      {profile.name?.charAt(0) || 'U'}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-medium">{profile.name}</p>
+                      <p className="text-gray-300 text-sm">{profile.codename}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAcceptRequest(profile.id)}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => handleRejectRequest(profile.id)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            
-            <button 
-              onClick={handleChangePassword}
-              className="w-full text-left p-3 bg-yellow-500/20 text-yellow-300 rounded-lg hover:bg-yellow-500/30 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <Settings className="w-5 h-5" />
-                <span>Change Password</span>
-              </div>
-            </button>
-            
-            <button 
-              onClick={handleLogout}
-              className="w-full text-left p-3 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </div>
-            </button>
-          </div>
+          ) : (
+            <p className="text-gray-400 text-sm">No incoming connection requests. When someone sends you a request, it will appear here!</p>
+          )}
+        </div>
+
+        {/* Mutual Connections */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+          <h4 className="text-lg font-medium text-white mb-3 flex items-center gap-2">
+            <User className="w-5 h-5" />
+            Mutual Connections
+          </h4>
+          {mutualProfiles.length > 0 ? (
+            <div className="space-y-3">
+              {mutualProfiles.map((profile) => (
+                <div key={profile.id} className="bg-white/5 rounded-lg p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-semibold">
+                      {profile.name?.charAt(0) || 'U'}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-medium">{profile.name}</p>
+                      <p className="text-gray-300 text-sm">{profile.codename}</p>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/chat/${profile.id}`)}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm flex items-center gap-1"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Chat
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-sm">No mutual connections yet. Accept connection requests to start chatting!</p>
+          )}
         </div>
       </div>
     </div>
   );
+
+  // (settings tab removed)
 
   if (!currentUser) {
     return (
@@ -640,44 +562,7 @@ const DashboardScreen: React.FC = () => {
     );
   }
 
-  if (analyzedMatches.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-center text-white max-w-md mx-auto p-8">
-          <Users className="w-16 h-16 mx-auto mb-6 opacity-50" />
-          <h1 className="text-3xl font-bold mb-4">🔍 No matches found yet</h1>
-          <div className="text-lg opacity-80 mb-8 space-y-2">
-            <p>No developers with similar preferences found yet!</p>
-            <p className="text-sm opacity-70">
-              More developers are joining every day. Your answers are stored and will match with new users automatically.
-            </p>
-            <p className="text-xs opacity-50">
-              💡 Click refresh to check for new matches or try logging in with different accounts to test the system!
-            </p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <motion.button
-              onClick={refreshMatches}
-              className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              🔄 Refresh Matches
-            </motion.button>
-            <motion.button
-              onClick={() => navigate('/onboarding')}
-              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-green-600 transition-all shadow-lg"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              📝 Retake Onboarding
-            </motion.button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // removed early return for no matches – handled inside renderMatchesTab
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
@@ -688,7 +573,7 @@ const DashboardScreen: React.FC = () => {
             {/* Logo/Brand */}
             <div className="flex items-center space-x-3">
               <Home className="w-8 h-8 text-white" />
-              <span className="text-xl font-bold text-white">DevMatch</span>
+              <span className="text-xl font-bold text-white">SyncUp</span>
             </div>
 
             {/* Navigation Tabs */}
@@ -701,8 +586,7 @@ const DashboardScreen: React.FC = () => {
                   label: 'Connections', 
                   icon: UserPlus,
                   badge: incomingRequests.size > 0 ? incomingRequests.size : undefined
-                },
-                { id: 'settings', label: 'Settings', icon: Settings }
+                }
               ].map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -727,7 +611,7 @@ const DashboardScreen: React.FC = () => {
               })}
             </div>
 
-            {/* User Menu */}
+            {/* User Menu + Logout */}
             <div className="flex items-center space-x-3">
               <div className="text-right text-white">
                 <div className="text-sm font-medium">{currentUser.name}</div>
@@ -738,6 +622,14 @@ const DashboardScreen: React.FC = () => {
                 alt={currentUser.name}
                 className="w-8 h-8 rounded-full border-2 border-white/30"
               />
+              <button
+                onClick={handleLogout}
+                className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-1"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </div>
@@ -745,6 +637,20 @@ const DashboardScreen: React.FC = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-6">
+        {/* Quick nav: show Back to Matches when not on matches tab */}
+        {activeTab !== 'matches' && (
+          <div className="mb-4 flex justify-center">
+            <motion.button
+              onClick={() => setActiveTab('matches')}
+              className="px-5 py-2 bg-white/20 text-white rounded-lg font-medium hover:bg-white/30 transition-colors backdrop-blur-sm"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              ← Back to Matches
+            </motion.button>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -756,7 +662,7 @@ const DashboardScreen: React.FC = () => {
             {activeTab === 'matches' && renderMatchesTab()}
             {activeTab === 'profile' && renderProfileTab()}
             {activeTab === 'connections' && renderConnectionsTab()}
-            {activeTab === 'settings' && renderSettingsTab()}
+            {/* settings removed */}
           </motion.div>
         </AnimatePresence>
       </div>

@@ -12,9 +12,13 @@ import AuthCallback from './pages/AuthCallback';
 import CompanionAvatar from './components/CompanionAvatar';
 import TestComponent from './components/TestComponent';
 
-const SimpleBackground = () => (
-  <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-    <div className="absolute inset-0 bg-black/20"></div>
+const AnimatedBackground = () => (
+  <div className="absolute inset-0 moving-gradient">
+    {/* Radial glow accents */}
+    <div className="bg-glow-spot top-10 left-10 w-64 h-64 rounded-full bg-brand-primary/40"></div>
+    <div className="bg-glow-spot bottom-10 right-10 w-72 h-72 rounded-full bg-brand-secondary/40"></div>
+    <div className="bg-glow-spot top-1/3 right-1/4 w-80 h-80 rounded-full bg-brand-accent/40"></div>
+    <div className="absolute inset-0 bg-black/30"></div>
   </div>
 );
 
@@ -25,7 +29,7 @@ function App() {
 
   return (
     <div className="min-h-screen w-full font-sans overflow-x-hidden relative">
-      <SimpleBackground />
+      <AnimatedBackground />
       <CompanionAvatar />
 
       <main className="relative z-10">

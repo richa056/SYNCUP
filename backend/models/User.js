@@ -38,6 +38,12 @@ const UserSchema = new mongoose.Schema({
     memeReactions: [{ memeId: String, reaction: String }],
     profileComplete: { type: Boolean, default: false },
     
+    // Connections
+    connectionRequestsSent: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
+    connectionRequestsIncoming: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
+    mutualConnections: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
+    passedMatches: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
+    
     // App Data
     likedMatches: {
         type: [mongoose.Schema.Types.ObjectId],
@@ -47,5 +53,9 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 UserSchema.index({ provider: 1, providerId: 1 }, { unique: true });
+UserSchema.index({ profileComplete: 1 });
+UserSchema.index({ 'memeReactions.memeId': 1 });
+// Lightweight index on quizAnswers presence (field exists)
+UserSchema.index({ quizAnswers: 1 });
 
 export default mongoose.model('User', UserSchema);

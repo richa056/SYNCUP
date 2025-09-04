@@ -35,16 +35,20 @@ interface ProfileBuilderContextType {
   connectionRequests: Set<string>;
   incomingRequests: Set<string>;
   mutualConnections: Set<string>;
+  passedMatches: Set<string>;
+  pendingConnections: Set<string>;
   setQuizAnswer: (questionId: number, answer: any) => void;
   addMemeReaction: (reaction: MemeReaction) => void;
   finalizeProfile: (loginProvider: string) => Promise<void>;
   setCompanionMessage: (message: string) => void;
   toggleLike: (matchId: string) => void;
+  passMatch: (matchId: string) => void;
   sendConnectionRequest: (matchId: string) => void;
   acceptConnectionRequest: (matchId: string) => void;
   rejectConnectionRequest: (matchId: string) => void;
   getCurrentMatches: () => any[];
   refreshMatches: () => Promise<void>;
+  manualRefreshConnections: () => void;
 }
 
 const ProfileBuilderContext = createContext<ProfileBuilderContextType | undefined>(undefined);
@@ -72,6 +76,14 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   });
   const [mutualConnections, setMutualConnections] = useState<Set<string>>(() => {
     const stored = getFromStorage('syncup_mutual_connections', []);
+    return new Set(stored);
+  });
+  const [passedMatches, setPassedMatches] = useState<Set<string>>(() => {
+    const stored = getFromStorage('syncup_passed_matches', []);
+    return new Set(stored);
+  });
+  const [pendingConnections, setPendingConnections] = useState<Set<string>>(() => {
+    const stored = getFromStorage('syncup_pending_connections', []);
     return new Set(stored);
   });
   const navigate = useNavigate();
@@ -124,6 +136,8 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem('syncup_connection_requests', JSON.stringify(Array.from(connectionRequests))); }, [connectionRequests]);
   useEffect(() => { localStorage.setItem('syncup_incoming_requests', JSON.stringify(Array.from(incomingRequests))); }, [incomingRequests]);
   useEffect(() => { localStorage.setItem('syncup_mutual_connections', JSON.stringify(Array.from(mutualConnections))); }, [mutualConnections]);
+  useEffect(() => { localStorage.setItem('syncup_passed_matches', JSON.stringify(Array.from(passedMatches))); }, [passedMatches]);
+  useEffect(() => { localStorage.setItem('syncup_pending_connections', JSON.stringify(Array.from(pendingConnections))); }, [pendingConnections]);
 
   // Listen for localStorage changes from other tabs to enable real-time sync
   useEffect(() => {
@@ -136,6 +150,10 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
         setIncomingRequests(new Set(JSON.parse(e.newValue)));
       } else if (e.key === 'syncup_mutual_connections' && e.newValue) {
         setMutualConnections(new Set(JSON.parse(e.newValue)));
+      } else if (e.key === 'syncup_passed_matches' && e.newValue) {
+        setPassedMatches(new Set(JSON.parse(e.newValue)));
+      } else if (e.key === 'syncup_pending_connections' && e.newValue) {
+        setPendingConnections(new Set(JSON.parse(e.newValue)));
       }
     };
 
@@ -143,8 +161,76 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const setQuizAnswer = (questionId: number, answer: any) => {
-    setQuizAnswers(prev => ({ ...prev, [questionId]: answer }));
+  // Helper: refresh connection state from backend
+  const refreshConnectionState = async () => {
+    try {
+      if (!currentUser?.id) return;
+      console.log('🔄 Context: refreshing connection state for user:', currentUser.id);
+      const res = await fetch(`/api/users/connections/state/${currentUser.id}?includeProfiles=true`);
+      if (!res.ok) throw new Error('Failed to load connection state');
+      const data = await res.json();
+      console.log('🔄 Context: received connection state:', data);
+      setConnectionRequests(new Set((data.sent || []).map((id: string) => String(id))));
+      setIncomingRequests(new Set((data.incoming || []).map((id: string) => String(id))));
+      setMutualConnections(new Set((data.mutual || []).map((id: string) => String(id))));
+      // store hydrated profiles for dashboard
+      if (Array.isArray(data.incomingProfiles)) {
+        console.log('🔄 Context: storing incoming profiles in cache:', data.incomingProfiles);
+        localStorage.setItem('syncup_incoming_profiles_cache', JSON.stringify(data.incomingProfiles));
+        // Force dashboard to re-read cache
+        window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
+      }
+      if (Array.isArray(data.sentProfiles)) {
+        console.log('🔄 Context: storing sent profiles in cache:', data.sentProfiles);
+        localStorage.setItem('syncup_sent_profiles_cache', JSON.stringify(data.sentProfiles));
+      }
+      if (Array.isArray(data.mutualProfiles)) {
+        console.log('🔄 Context: storing mutual profiles in cache:', data.mutualProfiles);
+        localStorage.setItem('syncup_mutual_profiles_cache', JSON.stringify(data.mutualProfiles));
+      }
+    } catch (e) {
+      console.warn('Failed to refresh connection state:', e);
+    }
+  };
+
+  // Manual refresh function for user to call
+  const manualRefreshConnections = () => {
+    console.log('🔄 Manual refresh triggered');
+    refreshConnectionState();
+  };
+
+  // Poll connection state occasionally to keep both sides updated
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    refreshConnectionState();
+    const id = setInterval(() => refreshConnectionState(), 5000);
+    return () => clearInterval(id);
+  }, [currentUser?.id]);
+
+  // Listen for manual refresh requests from dashboard
+  useEffect(() => {
+    const handleManualRefresh = () => {
+      console.log('🔄 Context: received manual refresh request');
+      refreshConnectionState();
+    };
+
+    window.addEventListener('syncup_manual_refresh', handleManualRefresh);
+    return () => window.removeEventListener('syncup_manual_refresh', handleManualRefresh);
+  }, []);
+
+  const setQuizAnswer = async (questionId: number, answer: any) => {
+    const updatedAnswers = { ...quizAnswers, [questionId]: answer };
+    setQuizAnswers(updatedAnswers);
+    
+    // Persist incrementally with updated state
+    try {
+      if (currentUser?.id) {
+        await saveUserProfileData(currentUser.id, updatedAnswers, memeReactions, false);
+        console.log(`✅ Saved answer ${questionId}: ${answer}`);
+      }
+    } catch (e) {
+      console.warn('Incremental save failed (quiz):', e);
+    }
     
     // Update companion message based on the answer
     const messages = [
@@ -159,8 +245,19 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     setCompanionMessage(randomMessage);
   };
 
-  const addMemeReaction = (reaction: MemeReaction) => {
-    setMemeReactions(prev => [...prev.filter(r => r.memeId !== reaction.memeId), reaction]);
+  const addMemeReaction = async (reaction: MemeReaction) => {
+    const next = [...memeReactions.filter(r => r.memeId !== reaction.memeId), reaction];
+    setMemeReactions(next);
+    
+    // Persist incrementally with updated state
+    try {
+      if (currentUser?.id) {
+        await saveUserProfileData(currentUser.id, quizAnswers, next, false);
+        console.log(`✅ Saved meme reaction: ${reaction.memeId} - ${reaction.reaction}`);
+      }
+    } catch (e) {
+      console.warn('Incremental save failed (meme):', e);
+    }
     
     // Update companion message based on meme reaction
     const reactionMessages = {
@@ -168,12 +265,12 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       '😂': "Haha! You've got a great sense of humor!",
       '💯': "So relatable! You really get it!",
       '😭': "Too real! You've been there, done that!"
-    };
+    } as const;
     
     setCompanionMessage(reactionMessages[reaction.reaction] || "Great reaction! Keep going!");
   };
   
-    const finalizeProfile = async (loginProvider: string) => {
+  const finalizeProfile = async (loginProvider: string) => {
     setIsGeneratingProfile(true);
     setCompanionMessage("Analyzing your answers and creating your developer profile... This is exciting!");
     
@@ -186,120 +283,78 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
         undefined // TODO: Add GitHub data integration
       );
       
-             // Step 1: Analyze performance metrics (takes 1 second)
-       setCompanionMessage("Analyzing your performance metrics... This will take a moment.");
-       await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-       
-       const performanceMetrics = analyzePerformanceMetrics(quizAnswers, memeReactions);
-       console.log('📊 Performance Metrics:', performanceMetrics);
-       
-       // Step 2: Find most similar users from database
-       setCompanionMessage("Finding developers with similar preferences...");
-       
-       let finalMatches;
-       if (currentUser?.id) {
-         try {
-           // Save user's quiz answers and meme reactions to database
-           try {
-             console.log('🔄 Attempting to save profile data...');
-             const saveResult = await saveUserProfileData(currentUser.id, quizAnswers, memeReactions);
-             console.log('✅ Profile data save result:', saveResult);
-           } catch (saveError) {
-             console.error('❌ Failed to save profile data:', saveError);
-             // Continue anyway - don't let this block profile generation
-           }
-           
-           // Find the 3 most similar users from database with timeout
-           let similarUsers: UserSimilarity[] = [];
-           try {
-             const timeoutPromise = new Promise((_, reject) => 
-               setTimeout(() => reject(new Error('Database query timeout')), 10000)
-             );
-             
-             similarUsers = await Promise.race([
-               findMostSimilarUsers(currentUser.id, quizAnswers, memeReactions, performanceMetrics),
-               timeoutPromise
-             ]);
-           } catch (dbTimeoutError) {
-             console.error('❌ Database query timeout or error:', dbTimeoutError);
-             similarUsers = []; // Empty array to continue
-           }
-           
-                       if (similarUsers.length > 0) {
-              console.log('🎯 Found similar users:', similarUsers);
-              
-              // Convert similar users to the expected format
-              const profileData = similarUsers.map(match => ({
-                ...match.user,
-                id: match.user._id || `user_${match.user._id}`,
-                matchScore: match.similarityScore,
-                matchReasons: match.matchingTraits,
-                compatibility: match.compatibility
-              }));
-              
-              setAnalyzedMatches(profileData);
-              setCompanionMessage(`Found ${similarUsers.length} developers with similar preferences!`);
-            } else {
-              console.log('No similar users found, trying real-time matching');
-              
-              // Try real-time matching as fallback
-              try {
-                const realtimeResponse = await fetch('/api/users/realtime-match', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ currentUserId: currentUser.id })
-                });
-                
-                if (realtimeResponse.ok) {
-                  const realtimeData = await realtimeResponse.json();
-                  if (realtimeData.matches && realtimeData.matches.length > 0) {
-                    const profileData = realtimeData.matches.map((match: any) => ({
-                      ...match.user,
-                      id: match.user._id || `user_${match.user._id}`,
-                      matchScore: match.similarityScore,
-                      matchReasons: match.matchingTraits
-                    }));
-                    
-                    setAnalyzedMatches(profileData);
-                    setCompanionMessage(`Found ${realtimeData.matches.length} developers with similar preferences!`);
-                  } else {
-                    throw new Error('No real-time matches found');
-                  }
-                } else {
-                  throw new Error('Real-time matching failed');
-                }
-              } catch (realtimeError) {
-                console.log('Real-time matching also failed:', realtimeError);
-                throw new Error('No similar users found');
-              }
-            }
-                   } catch (dbError) {
-            console.log('Database matching failed, no similar users found:', dbError);
-            setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
-            setAnalyzedMatches([]); // Show no matches instead of mock users
+      // Step 1: Analyze performance metrics (takes 1 second)
+      setCompanionMessage("Analyzing your performance metrics... This will take a moment.");
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+      
+      const performanceMetrics = analyzePerformanceMetrics(quizAnswers, memeReactions);
+      console.log('📊 Performance Metrics:', performanceMetrics);
+      
+      // Step 2: Save final profile data and mark complete
+      if (currentUser?.id) {
+        try {
+          await saveUserProfileData(currentUser.id, quizAnswers, memeReactions, true);
+        } catch (e) {
+          console.error('Failed to mark profile complete:', e);
+        }
+      }
+      
+      // Step 3: Find most similar users from database
+      setCompanionMessage("Finding developers with similar preferences...");
+      
+      let finalMatches;
+      if (currentUser?.id) {
+        try {
+          let similarUsers: UserSimilarity[] = [];
+          try {
+            const timeoutPromise: Promise<UserSimilarity[]> = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Database query timeout')), 10000)
+            );
+            
+            similarUsers = await Promise.race<UserSimilarity[] | Promise<UserSimilarity[]>>([
+              findMostSimilarUsers(currentUser.id, quizAnswers, memeReactions, performanceMetrics),
+              timeoutPromise
+            ]);
+          } catch (dbTimeoutError) {
+            console.error('❌ Database query timeout or error:', dbTimeoutError);
+            similarUsers = []; // Empty array to continue
           }
-               } else {
-          // No current user, show no matches
-          setCompanionMessage("Please login to see your matches!");
+          
+          if (similarUsers.length > 0) {
+            console.log('🎯 Found similar users:', similarUsers);
+            
+            const profileData = similarUsers.map(match => ({
+              ...match.user,
+              id: match.user._id || `user_${match.user._id}`,
+              matchScore: match.similarityScore,
+              matchReasons: match.matchingTraits,
+              compatibility: match.compatibility
+            }));
+            
+            setAnalyzedMatches(profileData);
+            setCompanionMessage(`Found ${similarUsers.length} developers with similar preferences!`);
+          } else {
+            setAnalyzedMatches([]);
+            setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
+          }
+        } catch (dbError) {
+          console.log('Database matching failed, no similar users found:', dbError);
+          setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
           setAnalyzedMatches([]);
         }
+      }
       
-      // Create a user object that matches what AuthContext expects
+      // Create a user object for AuthContext
       const userForAuth = {
         id: profile.id,
         name: profile.name,
         avatarUrl: profile.avatarUrl,
         codename: profile.codename,
-        // Add any other fields that AuthContext expects
-      };
+      } as any;
       
-      // Login the user with their generated profile
       login(userForAuth, () => {
-        // Clean up onboarding data
         localStorage.removeItem(QUIZ_ANSWERS_KEY);
         localStorage.removeItem(MEME_REACTIONS_KEY);
-        
-        // Navigate to dashboard where they'll see their matches
         navigate('/dashboard');
       });
 
@@ -307,97 +362,94 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       console.error("ProfileBuilder: Failed to generate developer profile:", error);
       setCompanionMessage("Profile generation failed, but you can still proceed to see your matches!");
       
-      // Fallback: create a basic profile and proceed
       try {
-        const fallbackProfile = {
-          id: currentUser?.id || 'user_' + Date.now(),
-          name: currentUser?.name || 'Developer',
-          avatarUrl: currentUser?.avatarUrl || 'https://via.placeholder.com/150',
-          codename: 'CodeCraft'
-        };
-        
-                 // Try to find real matches from MongoDB first
-         if (currentUser?.id) {
-           try {
-             // Save user's quiz answers and meme reactions to database
-             await saveUserProfileData(currentUser.id, quizAnswers, memeReactions);
-             
-             // Find matches from database
-             const fallbackMatches = await findMatchesFromDatabase(
-               quizAnswers,
-               memeReactions,
-               currentUser.id,
-               [] // No exclusions for fallback matching
-             );
-             
-             if (fallbackMatches.length > 0) {
-               // Convert MongoDB matches to the expected format
-               const profileData = fallbackMatches.map(match => ({
-                 ...match.profile,
-                 id: match.profile._id || `user_${match.profile._id}`,
-                 matchScore: match.score,
-                 matchReasons: match.reasons
-               }));
-               
-               setAnalyzedMatches(profileData);
-             } else {
-               setAnalyzedMatches([]); // No matches found
-             }
-           } catch (dbError) {
-             console.log('Database matching failed in fallback:', dbError);
-             setAnalyzedMatches([]); // No matches found
-           }
-         } else {
-           // No current user, show no matches
-           setAnalyzedMatches([]);
-         }
-        
-        // Login with fallback profile
-        login(fallbackProfile, () => {
-          localStorage.removeItem(QUIZ_ANSWERS_KEY);
-          localStorage.removeItem(MEME_REACTIONS_KEY);
-          navigate('/dashboard');
-        });
-        
-      } catch (fallbackError) {
-        console.error("ProfileBuilder: Fallback also failed:", fallbackError);
-        setCompanionMessage("Something went wrong. Please try refreshing the page.");
-        setIsGeneratingProfile(false);
-      }
+        if (currentUser?.id) {
+          await saveUserProfileData(currentUser.id, quizAnswers, memeReactions, true);
+        }
+      } catch {}
+      
+      navigate('/dashboard');
+      setIsGeneratingProfile(false);
     }
   };
 
-  const sendConnectionRequest = (matchId: string) => {
+  const sendConnectionRequest = async (matchId: string) => {
+    // optimistic update
     setConnectionRequests(prev => {
       const newSet = new Set(prev);
       newSet.add(matchId);
       return newSet;
     });
+
+    setPendingConnections(prev => {
+      const newSet = new Set(prev);
+      newSet.add(matchId);
+      return newSet;
+    });
     
-    // Update companion message
     setCompanionMessage("Connection request sent! They'll be notified of your interest.");
     
-    // Store in localStorage
+    // persist locally
     const updatedRequests = Array.from(new Set([...Array.from(connectionRequests), matchId]));
+    const updatedPending = Array.from(new Set([...Array.from(pendingConnections), matchId]));
     localStorage.setItem('syncup_connection_requests', JSON.stringify(updatedRequests));
+    localStorage.setItem('syncup_pending_connections', JSON.stringify(updatedPending));
+
+    // Immediately hydrate sent profiles cache for UI (avoid waiting for poll)
+    try {
+      // Try find profile from analyzed matches or fetch public profile
+      const existing = analyzedMatches.find((m: any) => String(m.id) === String(matchId));
+      let profile = existing;
+      if (!profile) {
+        const res = await fetch(`/api/users/public/${matchId}`);
+        if (res.ok) profile = await res.json();
+      }
+      if (profile) {
+        const cacheKey = 'syncup_sent_profiles_cache';
+        const current = getFromStorage<any[]>(cacheKey, []);
+        const mergedMap = new Map<string, any>();
+        current.forEach(p => mergedMap.set(String(p.id || p._id), p));
+        mergedMap.set(String(profile.id || profile._id), { ...profile, id: profile.id || profile._id });
+        localStorage.setItem(cacheKey, JSON.stringify(Array.from(mergedMap.values())));
+        // Notify dashboards to refresh from cache
+        window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
+      }
+    } catch (e) {
+      console.warn('Failed to hydrate sent profiles cache:', e);
+    }
+
+    // call backend
+    try {
+      if (!currentUser?.id) return;
+      const res = await fetch('/api/users/connections/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromUserId: currentUser.id, toUserId: matchId })
+      });
+      if (!res.ok) throw new Error('request failed');
+      await refreshConnectionState();
+    } catch (e) {
+      console.error('Failed to send connection request:', e);
+    }
+
+    // Remove from current matches and refill
+    await removeMatchAndRefill(matchId);
   };
 
-  const acceptConnectionRequest = (matchId: string) => {
-    // Remove from incoming requests
+  const acceptConnectionRequest = async (matchId: string) => {
+    // optimistic remove from incoming, add to mutual
     setIncomingRequests(prev => {
       const newSet = new Set(prev);
       newSet.delete(matchId);
       return newSet;
     });
     
-    // Add to mutual connections
     setMutualConnections(prev => {
       const newSet = new Set(prev);
       newSet.add(matchId);
       return newSet;
     });
     
-    // Update companion message
     setCompanionMessage("Connection accepted! You can now chat with this developer.");
     
     // Update localStorage
@@ -405,22 +457,63 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     const updatedMutual = Array.from(new Set([...Array.from(mutualConnections), matchId]));
     localStorage.setItem('syncup_incoming_requests', JSON.stringify(updatedIncoming));
     localStorage.setItem('syncup_mutual_connections', JSON.stringify(updatedMutual));
+
+    try {
+      if (!currentUser?.id) return;
+      const res = await fetch('/api/users/connections/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, fromUserId: matchId })
+      });
+      if (!res.ok) throw new Error('accept failed');
+      await refreshConnectionState();
+      // update mutual cache immediately
+      const pub = await fetch(`/api/users/public/${matchId}`).then(r => r.ok ? r.json() : null).catch(() => null);
+      if (pub) {
+        const cacheKey = 'syncup_mutual_profiles_cache';
+        const current = getFromStorage<any[]>(cacheKey, []);
+        const byId = new Map(current.map(p => [String(p.id || p._id), p]));
+        byId.set(String(pub.id || pub._id), { ...pub, id: pub.id || pub._id });
+        localStorage.setItem(cacheKey, JSON.stringify(Array.from(byId.values())));
+        window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
+      }
+    } catch (e) {
+      console.error('Failed to accept connection request:', e);
+    }
   };
 
-  const rejectConnectionRequest = (matchId: string) => {
-    // Remove from incoming requests
+  const rejectConnectionRequest = async (matchId: string) => {
+    // optimistic remove from incoming
     setIncomingRequests(prev => {
       const newSet = new Set(prev);
       newSet.delete(matchId);
       return newSet;
     });
     
-    // Update companion message
     setCompanionMessage("Connection request rejected.");
     
     // Update localStorage
     const updatedIncoming = Array.from(new Set([...Array.from(incomingRequests)].filter(id => id !== matchId)));
     localStorage.setItem('syncup_incoming_requests', JSON.stringify(updatedIncoming));
+
+    try {
+      if (!currentUser?.id) return;
+      const res = await fetch('/api/users/connections/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, fromUserId: matchId })
+      });
+      if (!res.ok) throw new Error('reject failed');
+      await refreshConnectionState();
+      // prune incoming cache immediately
+      const key = 'syncup_incoming_profiles_cache';
+      const list = getFromStorage<any[]>(key, []);
+      const filtered = list.filter(p => String(p.id || p._id) !== String(matchId));
+      localStorage.setItem(key, JSON.stringify(filtered));
+      window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
+    } catch (e) {
+      console.error('Failed to reject connection request:', e);
+    }
   };
 
   const toggleLike = (matchId: string) => {
@@ -438,6 +531,32 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
         
         return newSet;
     });
+  };
+
+  const passMatch = async (matchId: string) => {
+    setPassedMatches(prev => {
+      const newSet = new Set(prev);
+      newSet.add(matchId);
+      const newArray = Array.from(newSet);
+      localStorage.setItem('syncup_passed_matches', JSON.stringify(newArray));
+      return newSet;
+    });
+    setCompanionMessage("You've passed on this match. Keep going to find your perfect developer!");
+
+    try {
+      if (!currentUser?.id) return;
+      await fetch('/api/users/pass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, passedUserId: matchId })
+      });
+      await refreshConnectionState();
+    } catch (e) {
+      console.warn('Failed to persist pass:', e);
+    }
+
+    // Remove from current matches and refill
+    await removeMatchAndRefill(matchId);
   };
 
   const getCurrentMatches = () => {
@@ -483,26 +602,111 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   };
 
+  // Helper: fetch more matches to keep buffer at least 3
+  const refillMatchesIfNeeded = async () => {
+    try {
+      if (!currentUser?.id) return;
+      const MIN_BUFFER = 3;
+      if (analyzedMatches.length >= MIN_BUFFER) return;
+
+      // Build exclude list: current user, shown matches, passed, requests, liked
+      const exclude = new Set<string>();
+      exclude.add(currentUser.id);
+      analyzedMatches.forEach(m => exclude.add(String(m.id)));
+      Array.from(passedMatches).forEach(id => exclude.add(String(id)));
+      Array.from(connectionRequests).forEach(id => exclude.add(String(id)));
+      Array.from(likedMatches).forEach(id => exclude.add(String(id)));
+
+      const response = await fetch('/api/users/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentUserId: currentUser.id, excludeIds: Array.from(exclude) })
+      });
+
+      if (response.ok) {
+        const potential = await response.json();
+        const profileData = potential.map((match: any) => ({
+          ...match,
+          id: match._id,
+          matchScore: 0,
+          matchReasons: []
+        }));
+
+        // Merge new unique profiles, keep at most MIN_BUFFER
+        setAnalyzedMatches(prev => {
+          const byId = new Map<string, any>();
+          prev.forEach((p: any) => byId.set(String(p.id), p));
+          profileData.forEach((p: any) => {
+            if (!byId.has(String(p.id))) byId.set(String(p.id), p);
+          });
+          const merged = Array.from(byId.values());
+          return merged.slice(0, Math.max(MIN_BUFFER, merged.length));
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to refill matches:', e);
+    }
+  };
+
+  // Remove a match from the current list and refill
+  const removeMatchAndRefill = async (matchId: string) => {
+    setAnalyzedMatches(prev => prev.filter((m: any) => String(m.id) !== String(matchId)));
+    await refillMatchesIfNeeded();
+  };
+
+  // Resolve minimal profiles for a set of userIds (used for incoming/sent requests display)
+  const resolveProfilesByIds = async (userIds: string[]): Promise<any[]> => {
+    try {
+      const unique = Array.from(new Set(userIds.filter(Boolean)));
+      const results = await Promise.all(unique.map(async (id) => {
+        try {
+          const res = await fetch(`/api/users/public/${id}`);
+          if (!res.ok) throw new Error('load failed');
+          const data = await res.json();
+          return { ...data, id: data.id || data._id };
+        } catch {
+          return null;
+        }
+      }));
+      return results.filter(Boolean) as any[];
+    } catch {
+      return [];
+    }
+  };
+
+  // Filter analyzedMatches to exclude any profiles already acted upon
+  const filteredAnalyzedMatches = useMemo(() => {
+    const exclude = new Set<string>();
+    Array.from(passedMatches).forEach(id => exclude.add(String(id)));
+    Array.from(connectionRequests).forEach(id => exclude.add(String(id)));
+    Array.from(likedMatches).forEach(id => exclude.add(String(id)));
+    return analyzedMatches.filter((m: any) => !exclude.has(String(m.id)));
+  }, [analyzedMatches, passedMatches, connectionRequests, likedMatches]);
+
   const value = {
     quizAnswers,
     memeReactions,
     isGeneratingProfile,
     companionMessage,
     likedMatches,
-    analyzedMatches,
+    analyzedMatches: filteredAnalyzedMatches, // Use filtered version to exclude acted-upon profiles
     connectionRequests,
     incomingRequests,
     mutualConnections,
+    passedMatches,
+    pendingConnections,
     setQuizAnswer,
     addMemeReaction,
     finalizeProfile,
     setCompanionMessage,
     toggleLike,
+    passMatch,
     sendConnectionRequest,
     acceptConnectionRequest,
     rejectConnectionRequest,
     getCurrentMatches,
-    refreshMatches
+    refreshMatches,
+    manualRefreshConnections // Add manual refresh function
   };
 
   return (
