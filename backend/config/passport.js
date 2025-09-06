@@ -9,7 +9,8 @@ passport.use(new GitHubStrategy({
     clientID: 'Ov23lirBd1M6Hf9skWr0',
     clientSecret: '0cfbfa15a405bca8f5f15414adbef22c608e7129',
     // Use env-based absolute URL (prod) with localhost fallback
-    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/github/callback`
+    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/github/callback`,
+    scope: ['user:email']
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -115,7 +116,8 @@ passport.use(new GoogleStrategy({
     clientID: '1070667631652-lqv1gc61t434o5pdtrongnl2bc3nkctm.apps.googleusercontent.com',
     clientSecret: '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',
     // Use env-based absolute URL (prod) with localhost fallback
-    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/google/callback`
+    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/google/callback`,
+    scope: ['profile', 'email']
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
