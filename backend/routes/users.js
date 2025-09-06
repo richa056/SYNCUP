@@ -110,21 +110,21 @@ const generateTraitsFromQuiz = (quizAnswers, memeReactions) => {
     if (quizAnswers[1] === 'Morning') traits.push('Early Bird', 'Morning Person');
     if (quizAnswers[1] === 'Night') traits.push('Night Owl', 'Late Night Coder');
     if (quizAnswers[1] === 'Flexible') traits.push('Flexible Schedule');
-
+    
     if (quizAnswers[2] === 'Customized Zsh/Fish') traits.push('Terminal Customizer', 'CLI Enthusiast');
     if (quizAnswers[2] === 'Default Bash') traits.push('Simplicity Lover');
     if (quizAnswers[2] === 'Modern GUI terminal') traits.push('Modern Tools', 'Innovation Seeker');
-
+    
     if (quizAnswers[4] === 'Spaces') traits.push('Clean Code', 'Format Enthusiast');
     if (quizAnswers[4] === 'Tabs') traits.push('Efficient', 'Quick Coder');
-
+    
     if (quizAnswers[5] === 'GitHub Issues') traits.push('Version Control Oriented');
     if (quizAnswers[5] === 'Kanban board') traits.push('Visual Organizer', 'Project Manager');
     if (quizAnswers[5] === 'Documentation-first') traits.push('Documentation Lover', 'Organized');
-
+    
     if (quizAnswers[7] === 'Dark') traits.push('Dark Theme Lover', 'Night Mode');
     if (quizAnswers[7] === 'Light') traits.push('Light Theme Lover', 'Day Mode');
-
+    
     if (quizAnswers[10] === 'Single laptop') traits.push('Minimalist', 'Portable');
     if (quizAnswers[10] === 'Multi‑monitor desk') traits.push('Power User', 'Multi-Tasker');
     if (quizAnswers[10] === 'Coffee shop/Co‑working') traits.push('Social Coder', 'Networking');
@@ -297,7 +297,7 @@ router.post('/similar', async (req, res) => {
     // Calculate similarity scores for each potential match (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
       const matchingTraits = [];
-
+      
       // Quiz similarity percent
       const quizPercent = computeQuizSimilarityPercent(quizAnswers || {}, match.quizAnswers || {});
       if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) {
@@ -316,12 +316,12 @@ router.post('/similar', async (req, res) => {
       const memePercentRaw = (commonReactionsList.length || 0) * MEME_PERCENT_PER_MATCH;
       const memePercent = Math.min(MEME_PERCENT_CAP, memePercentRaw);
       if (memePercent > 0) matchingTraits.push(`${commonReactionsList.length} similar meme reactions (+${memePercent}%)`);
-
+      
       // Engagement bonus
       const engaged = (memeReactions || []).length > 0 && (match.memeReactions || []).length > 0;
       const engagementBonus = engaged ? MEME_ENGAGEMENT_BONUS : 0;
       if (engagementBonus > 0) matchingTraits.push('Both engaged with memes');
-
+      
       // Provider compatibility bonus
       let providerBonus = 0;
       if (match.provider === 'github' && quizAnswers && quizAnswers[5] === 'Git Guru') {
@@ -332,7 +332,7 @@ router.post('/similar', async (req, res) => {
         providerBonus += PROVIDER_COMPAT_BONUS;
         matchingTraits.push('Both appreciate networking');
       }
-
+      
       // Final normalized score
       const similarityScore = Math.max(0, Math.min(100, Math.round(quizPercent + memePercent + engagementBonus + providerBonus + devDnaContribution)));
 
@@ -340,7 +340,7 @@ router.post('/similar', async (req, res) => {
       let compatibility = 'low';
       if (similarityScore >= 80) compatibility = 'high';
       else if (similarityScore >= 50) compatibility = 'medium';
-
+      
       return {
         userId: match._id,
         user: { ...match.toObject(), id: match._id },
@@ -398,7 +398,7 @@ router.post('/realtime-match', async (req, res) => {
     // Calculate similarity scores (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
       const matchingTraits = [];
-
+      
       const quizPercent = computeQuizSimilarityPercent(currentUser.quizAnswers || {}, match.quizAnswers || {});
       if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) matchingTraits.push(`High quiz match (${quizPercent}%)`);
 
@@ -420,7 +420,7 @@ router.post('/realtime-match', async (req, res) => {
       let compatibility = 'low';
       if (similarityScore >= 80) compatibility = 'high';
       else if (similarityScore >= 50) compatibility = 'medium';
-
+      
       return {
         userId: match._id,
         user: { ...match.toObject(), id: match._id },
@@ -478,7 +478,7 @@ router.post('/refresh-matches', async (req, res) => {
     // Calculate similarity scores (normalized 0..100)
     const scoredMatches = potentialMatches.map(match => {
       const matchingTraits = [];
-
+      
       const quizPercent = computeQuizSimilarityPercent(currentUser.quizAnswers || {}, match.quizAnswers || {});
       if (quizPercent >= QUIZ_HIGH_MATCH_THRESHOLD) matchingTraits.push(`High quiz match (${quizPercent}%)`);
 
@@ -496,7 +496,7 @@ router.post('/refresh-matches', async (req, res) => {
       let compatibility = 'low';
       if (similarityScore >= 80) compatibility = 'high';
       else if (similarityScore >= 50) compatibility = 'medium';
-
+      
       return {
         userId: match._id,
         user: { ...match.toObject(), id: match._id },

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 // Removed MOCK_USER_PROFILE import - using real user data
 import { useProfileBuilder } from '../context/ProfileBuilderContext';
+import { apiCall } from '../utils/api';
 
 const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -38,9 +39,8 @@ const AuthCallback: React.FC = () => {
           localStorage.setItem('syncup_auth_token', token);
           
           // Sync or create user in backend to get real Mongo _id
-          const syncRes = await fetch('/api/users/sync', {
+          const syncRes = await apiCall('/api/users/sync', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               provider: (payload.provider || 'google').toLowerCase(),
               providerId: payload.providerId || payload.sub || payload.email,
