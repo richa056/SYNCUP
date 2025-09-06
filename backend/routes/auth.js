@@ -33,8 +33,9 @@ const createTokenAndRedirect = (req, res) => {
     console.log('OAuth successful for user:', req.user.name);
     console.log('Redirecting to frontend with token...');
 
-    // Use default redirect URL since we're not using state
-    const redirectUrl = `http://localhost:5173/#/auth/callback?token=${encodeURIComponent(token)}`;
+    // Use environment-based frontend URL with localhost fallback
+    const frontendUrl = process.env.FRONTEND_URL || 'https://syncup-six.vercel.app';
+    const redirectUrl = `${frontendUrl}/#/auth/callback?token=${encodeURIComponent(token)}`;
     
     console.log('Final redirect URL:', redirectUrl);
     res.redirect(redirectUrl);
@@ -42,14 +43,16 @@ const createTokenAndRedirect = (req, res) => {
 
 // GitHub Auth (pass frontend redirect as OAuth state)
 router.get('/github', (req, res, next) => {
-    const state = req.query.redirect || 'http://localhost:5173/#/auth/callback';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://syncup-six.vercel.app';
+    const state = req.query.redirect || `${frontendUrl}/#/auth/callback`;
     return passport.authenticate('github', { scope: ['user:email'], state })(req, res, next);
 });
 router.get('/github/callback', passport.authenticate('github', { failureRedirect: '/login/failed', session: false }), createTokenAndRedirect);
 
 // Google Auth (pass frontend redirect as OAuth state)
 router.get('/google', (req, res, next) => {
-    const state = req.query.redirect || 'http://localhost:5173/#/auth/callback';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://syncup-six.vercel.app';
+    const state = req.query.redirect || `${frontendUrl}/#/auth/callback`;
     return passport.authenticate('google', { scope: ['profile', 'email'], state })(req, res, next);
 });
 router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/login/failed', session: false }), createTokenAndRedirect);

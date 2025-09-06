@@ -62,13 +62,13 @@ router.get('/linkedin/callback', async (req, res) => {
     if (error) {
         console.error('LinkedIn OAuth error:', error);
         console.error('Error description:', error_description);
-        return res.redirect('http://localhost:5173/#/login?error=linkedin_oauth_failed');
+        return res.redirect('https://syncup-six.vercel.app/#/login?error=linkedin_oauth_failed');
     }
     
     if (!code) {
         console.error('No authorization code received');
         console.error('Available query parameters:', Object.keys(req.query));
-        return res.redirect('http://localhost:5173/#/login?error=linkedin_oauth_failed');
+        return res.redirect('https://syncup-six.vercel.app/#/login?error=linkedin_oauth_failed');
     }
     
     try {
@@ -100,7 +100,7 @@ router.get('/linkedin/callback', async (req, res) => {
         if (!tokenResponse.ok) {
             const errorText = await tokenResponse.text();
             console.error('Token exchange failed:', tokenResponse.status, errorText);
-            return res.redirect('http://localhost:5173/#/login?error=linkedin_token_failed');
+            return res.redirect('https://syncup-six.vercel.app/#/login?error=linkedin_token_failed');
         }
         
         const tokenData = await tokenResponse.json();
@@ -122,7 +122,7 @@ router.get('/linkedin/callback', async (req, res) => {
         if (!profileResponse.ok) {
             const errorText = await profileResponse.text();
             console.error('Profile fetch failed:', profileResponse.status, errorText);
-            return res.redirect('http://localhost:5173/#/login?error=linkedin_profile_failed');
+            return res.redirect('https://syncup-six.vercel.app/#/login?error=linkedin_profile_failed');
         }
         
         const profile = await profileResponse.json();
@@ -202,7 +202,7 @@ router.get('/linkedin/callback', async (req, res) => {
         const token = jwt.sign(payload, 'syncup_jwt_secret_key_2024', { expiresIn: '1d' });
         
         console.log('LinkedIn OAuth successful for user:', user.name);
-        const redirectUrl = `http://localhost:5173/#/auth/callback?token=${encodeURIComponent(token)}`;
+        const redirectUrl = `https://syncup-six.vercel.app/#/auth/callback?token=${encodeURIComponent(token)}`;
         console.log('Redirecting to:', redirectUrl);
         console.log('=== LinkedIn OAuth Complete ===');
         
@@ -213,7 +213,7 @@ router.get('/linkedin/callback', async (req, res) => {
         console.error('Error type:', error.constructor.name);
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
-        res.redirect('http://localhost:5173/#/login?error=linkedin_oauth_failed');
+        res.redirect('https://syncup-six.vercel.app/#/login?error=linkedin_oauth_failed');
     }
 });
 
