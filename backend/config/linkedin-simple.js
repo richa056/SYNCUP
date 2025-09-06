@@ -7,7 +7,7 @@ export const setupLinkedInStrategy = () => {
   passport.use(new LinkedInStrategy({
     clientID: '86lse6dytst1cf',
     clientSecret: 'WPL_AP1.oLdjDDhCP9dDY48s.jE/dFA==',
-    callbackURL: "http://localhost:3001/auth/linkedin/callback",
+    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/linkedin/callback`,
     scope: ['r_liteprofile']
   },
   async (accessToken, refreshToken, profile, done) => {

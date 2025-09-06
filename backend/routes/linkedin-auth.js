@@ -7,7 +7,7 @@ const router = express.Router();
 
 const LINKEDIN_CLIENT_ID = '86lse6dytst1cf';
 const LINKEDIN_CLIENT_SECRET = 'WPL_AP1.oLdjDDhCP9dDY48s.jE/dFA==';
-const REDIRECT_URI = 'http://localhost:3001/auth/linkedin/callback';
+const REDIRECT_URI = `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/linkedin/callback`;
 
 // Test endpoint to verify routes are working
 router.get('/linkedin/test', (req, res) => {

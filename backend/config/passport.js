@@ -8,8 +8,8 @@ import User from '../models/User.js';
 passport.use(new GitHubStrategy({
     clientID: 'Ov23lirBd1M6Hf9skWr0',
     clientSecret: '0cfbfa15a405bca8f5f15414adbef22c608e7129',
-    // Use absolute URL to satisfy provider redirect URI checks
-    callbackURL: "http://localhost:3001/auth/github/callback"
+    // Use env-based absolute URL (prod) with localhost fallback
+    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/github/callback`
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -114,8 +114,8 @@ passport.use(new GitHubStrategy({
 passport.use(new GoogleStrategy({
     clientID: '1070667631652-lqv1gc61t434o5pdtrongnl2bc3nkctm.apps.googleusercontent.com',
     clientSecret: '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',
-    // Use absolute URL to match Google's Authorized redirect URI
-    callbackURL: "http://localhost:3001/auth/google/callback"
+    // Use env-based absolute URL (prod) with localhost fallback
+    callbackURL: `${process.env.BACKEND_PUBLIC_URL || 'http://localhost:3001'}/auth/google/callback`
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
