@@ -709,16 +709,39 @@ router.post('/matches', async (req, res) => {
   try {
     const { currentUserId, excludeIds = [] } = req.body;
 
-    const filter = {
+    // Tier 1: Fully completed profiles with both quiz answers and meme reactions
+    const tier1Filter = {
       _id: { $ne: currentUserId, $nin: excludeIds },
       profileComplete: true,
       quizAnswers: { $exists: true, $ne: {} },
       memeReactions: { $exists: true, $ne: [] }
     };
 
-    const potentialMatches = await User.find(filter)
+    let potentialMatches = await User.find(tier1Filter)
       .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions')
-      .limit(3);
+      .limit(10);
+
+    // Tier 2: Has either quiz answers or meme reactions
+    if (!potentialMatches || potentialMatches.length === 0) {
+      const tier2Filter = {
+        _id: { $ne: currentUserId, $nin: excludeIds },
+        $or: [
+          { quizAnswers: { $exists: true, $ne: {} } },
+          { memeReactions: { $exists: true, $ne: [] } }
+        ]
+      };
+      potentialMatches = await User.find(tier2Filter)
+        .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions')
+        .limit(10);
+    }
+
+    // Tier 3: Anyone else available (guarantee at least one)
+    if (!potentialMatches || potentialMatches.length === 0) {
+      const tier3Filter = { _id: { $ne: currentUserId, $nin: excludeIds } };
+      potentialMatches = await User.find(tier3Filter)
+        .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions')
+        .limit(10);
+    }
 
     res.json(potentialMatches);
   } catch (error) {
