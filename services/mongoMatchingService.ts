@@ -1,4 +1,5 @@
 import { QuizAnswers, MemeReaction } from '../types';
+import { apiCall } from '../utils/api';
 
 interface ProfileMatch {
   profile: any; // MongoDB User object
@@ -20,7 +21,7 @@ export const findMatchesFromDatabase = async (
 ): Promise<ProfileMatch[]> => {
   try {
     // Fetch potential matches from MongoDB
-    const response = await fetch('/api/users/matches', {
+    const response = await apiCall('/api/users/matches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -161,11 +162,9 @@ export const saveUserProfileData = async (
     console.log('📝 Quiz answers:', Object.keys(quizAnswers).length);
     console.log('😄 Meme reactions:', memeReactions.length);
 
-    const response = await fetch(`/api/users/${userId}/profile`, {
+    const response = await apiCall(`/api/users/${userId}/profile`, {
       method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
+      // headers set by apiCall
       body: JSON.stringify({ quizAnswers, memeReactions, profileComplete })
     });
 
@@ -186,7 +185,7 @@ export const saveUserProfileData = async (
 // Function to get user's current matches from database
 export const getUserMatches = async (userId: string): Promise<ProfileMatch[]> => {
   try {
-    const response = await fetch(`/api/users/${userId}/matches`);
+    const response = await apiCall(`/api/users/${userId}/matches`);
     
     if (!response.ok) {
       throw new Error('Failed to fetch user matches');

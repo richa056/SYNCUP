@@ -5,6 +5,7 @@ import { QuizAnswers, MemeReaction } from '../types';
 import { generateDeveloperProfile } from '../services/profileAnalysisService';
 import { analyzeProfileAndFindMatches } from '../services/profileMatchingService';
 import { findMatchesFromDatabase, saveUserProfileData } from '../services/mongoMatchingService';
+import { apiCall } from '../utils/api';
 import { analyzePerformanceMetrics, findMostSimilarUsers, UserSimilarity } from '../services/performanceAnalysisService';
 import { useAuth } from './AuthContext';
 
@@ -166,7 +167,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     try {
       if (!currentUser?.id) return;
       console.log('🔄 Context: refreshing connection state for user:', currentUser.id);
-      const res = await fetch(`/api/users/connections/state/${currentUser.id}?includeProfiles=true`);
+      const res = await apiCall(`/api/users/connections/state/${currentUser.id}?includeProfiles=true`);
       if (!res.ok) throw new Error('Failed to load connection state');
       const data = await res.json();
       console.log('🔄 Context: received connection state:', data);
@@ -421,7 +422,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     // call backend
     try {
       if (!currentUser?.id) return;
-      const res = await fetch('/api/users/connections/request', {
+      const res = await apiCall('/api/users/connections/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromUserId: currentUser.id, toUserId: matchId })
@@ -460,7 +461,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
     try {
       if (!currentUser?.id) return;
-      const res = await fetch('/api/users/connections/accept', {
+      const res = await apiCall('/api/users/connections/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, fromUserId: matchId })
@@ -468,7 +469,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (!res.ok) throw new Error('accept failed');
       await refreshConnectionState();
       // update mutual cache immediately
-      const pub = await fetch(`/api/users/public/${matchId}`).then(r => r.ok ? r.json() : null).catch(() => null);
+      const pub = await apiCall(`/api/users/public/${matchId}`).then(r => r.ok ? r.json() : null).catch(() => null);
       if (pub) {
         const cacheKey = 'syncup_mutual_profiles_cache';
         const current = getFromStorage<any[]>(cacheKey, []);
@@ -498,7 +499,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
     try {
       if (!currentUser?.id) return;
-      const res = await fetch('/api/users/connections/reject', {
+      const res = await apiCall('/api/users/connections/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, fromUserId: matchId })
@@ -545,7 +546,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
 
     try {
       if (!currentUser?.id) return;
-      await fetch('/api/users/pass', {
+      await apiCall('/api/users/pass', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, passedUserId: matchId })
@@ -572,7 +573,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     try {
       setCompanionMessage("Refreshing matches...");
       
-      const response = await fetch('/api/users/refresh-matches', {
+      const response = await apiCall('/api/users/refresh-matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentUserId: currentUser.id })
@@ -617,7 +618,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       Array.from(connectionRequests).forEach(id => exclude.add(String(id)));
       Array.from(likedMatches).forEach(id => exclude.add(String(id)));
 
-      const response = await fetch('/api/users/matches', {
+      const response = await apiCall('/api/users/matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentUserId: currentUser.id, excludeIds: Array.from(exclude) })
