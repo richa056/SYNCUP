@@ -603,12 +603,12 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   };
 
-  // Helper: fetch more matches to keep buffer at least 3
+  // Helper: fetch more matches to keep buffer up to MAX_BUFFER (stop at 10)
   const refillMatchesIfNeeded = async () => {
     try {
       if (!currentUser?.id) return;
-      const MIN_BUFFER = 3;
-      if (analyzedMatches.length >= MIN_BUFFER) return;
+      const MAX_BUFFER = 10;
+      if (analyzedMatches.length >= MAX_BUFFER) return;
 
       // Build exclude list: current user, shown matches, passed, requests, liked
       const exclude = new Set<string>();
@@ -633,7 +633,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
           matchReasons: []
         }));
 
-        // Merge new unique profiles, keep at most MIN_BUFFER
+        // Merge new unique profiles, keep at most MAX_BUFFER
         setAnalyzedMatches(prev => {
           const byId = new Map<string, any>();
           prev.forEach((p: any) => byId.set(String(p.id), p));
@@ -641,7 +641,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
             if (!byId.has(String(p.id))) byId.set(String(p.id), p);
           });
           const merged = Array.from(byId.values());
-          return merged.slice(0, Math.max(MIN_BUFFER, merged.length));
+          return merged.slice(0, Math.min(MAX_BUFFER, merged.length));
         });
       }
     } catch (e) {
