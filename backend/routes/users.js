@@ -382,12 +382,27 @@ router.post('/realtime-match', async (req, res) => {
     
     console.log('✅ Found user with complete profile:', currentUser.name);
     
-    // Find ALL other users who have quiz answers and meme reactions
-    const potentialMatches = await User.find({
+    // Tiered fetch to guarantee matches
+    let potentialMatches = await User.find({
       _id: { $ne: currentUserId },
       quizAnswers: { $exists: true, $ne: {} },
       memeReactions: { $exists: true, $ne: [] }
     }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
+
+    if (!potentialMatches || potentialMatches.length === 0) {
+      potentialMatches = await User.find({
+        _id: { $ne: currentUserId },
+        $or: [
+          { quizAnswers: { $exists: true, $ne: {} } },
+          { memeReactions: { $exists: true, $ne: [] } }
+        ]
+      }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
+    }
+
+    if (!potentialMatches || potentialMatches.length === 0) {
+      potentialMatches = await User.find({ _id: { $ne: currentUserId } })
+        .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
+    }
     
     console.log(`🔄 Found ${potentialMatches.length} potential real-time matches`);
     
