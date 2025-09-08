@@ -1,4 +1,6 @@
 import { ChatMessage } from '../types';
+import { apiCall } from '../utils/api';
+import { getApiBaseUrl } from '../utils/api';
 
 class MessagingService {
   private eventSource: EventSource | null = null;
@@ -11,7 +13,9 @@ class MessagingService {
     }
 
     try {
-      this.eventSource = new EventSource(`/api/messaging/stream/${userId}`);
+      const base = getApiBaseUrl();
+      const streamUrl = `${base}/api/messaging/stream/${userId}`;
+      this.eventSource = new EventSource(streamUrl);
       
       this.eventSource.onopen = () => {
         this.isConnected = true;
@@ -60,7 +64,7 @@ class MessagingService {
 
   async sendMessage(conversationId: string, receiverId: string, text: string, senderId: string): Promise<boolean> {
     try {
-      const response = await fetch('/api/messaging/send', {
+      const response = await apiCall('/api/messaging/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, receiverId, text, senderId, timestamp: new Date().toISOString() }),
@@ -73,7 +77,7 @@ class MessagingService {
 
   async getConversationHistory(conversationId: string, limit = 200): Promise<ChatMessage[]> {
     try {
-      const response = await fetch(`/api/messaging/conversation/${conversationId}?limit=${limit}`);
+      const response = await apiCall(`/api/messaging/conversation/${conversationId}?limit=${limit}`);
       if (!response.ok) return [];
       const data = await response.json();
       return (data.messages || []).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));

@@ -402,7 +402,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const existing = analyzedMatches.find((m: any) => String(m.id) === String(matchId));
       let profile = existing;
       if (!profile) {
-        const res = await fetch(`/api/users/public/${matchId}`);
+        const res = await apiCall(`/api/users/public/${matchId}`);
         if (res.ok) profile = await res.json();
       }
       if (profile) {
@@ -661,7 +661,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const unique = Array.from(new Set(userIds.filter(Boolean)));
       const results = await Promise.all(unique.map(async (id) => {
         try {
-          const res = await fetch(`/api/users/public/${id}`);
+          const res = await apiCall(`/api/users/public/${id}`);
           if (!res.ok) throw new Error('load failed');
           const data = await res.json();
           return { ...data, id: data.id || data._id };
