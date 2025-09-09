@@ -58,20 +58,20 @@ const DashboardScreen: React.FC = () => {
   const [mutualProfiles, setMutualProfiles] = useState<any[]>([]);
 
   useEffect(() => {
-    // Prefer cache populated by context refresh
-    const cachedIncoming = localStorage.getItem('syncup_incoming_profiles_cache');
-    console.log('🔍 Dashboard: cachedIncoming =', cachedIncoming);
-    if (cachedIncoming) {
-      try { 
-        const parsed = JSON.parse(cachedIncoming);
-        console.log('🔍 Dashboard: parsed incoming profiles =', parsed);
-        setIncomingProfiles(parsed); 
-      } catch (e) {
-        console.error('🔍 Dashboard: failed to parse cached incoming profiles:', e);
-      }
-    } else {
-      console.log('🔍 Dashboard: no cached incoming profiles, fetching from IDs:', Array.from(incomingRequests));
-      (async () => {
+    const loadIncomingProfiles = async () => {
+      // Prefer cache populated by context refresh
+      const cachedIncoming = localStorage.getItem('syncup_incoming_profiles_cache');
+      console.log('🔍 Dashboard: cachedIncoming =', cachedIncoming);
+      if (cachedIncoming) {
+        try { 
+          const parsed = JSON.parse(cachedIncoming);
+          console.log('🔍 Dashboard: parsed incoming profiles =', parsed);
+          setIncomingProfiles(parsed); 
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse cached incoming profiles:', e);
+        }
+      } else {
+        console.log('🔍 Dashboard: no cached incoming profiles, fetching from IDs:', Array.from(incomingRequests));
         const ids = Array.from(incomingRequests) as string[];
         const profiles = await Promise.all(ids.map(id => {
           const existing = analyzedMatches.find(m => String(m.id) === String(id));
@@ -79,10 +79,14 @@ const DashboardScreen: React.FC = () => {
         }));
         console.log('🔍 Dashboard: fetched profiles from IDs:', profiles);
         setIncomingProfiles(profiles.filter(Boolean) as any[]);
-      })();
-    }
+      }
+    };
 
-    // Listen for cache updates from context
+    loadIncomingProfiles();
+  }, [incomingRequests, analyzedMatches]);
+
+  // Listen for cache updates from context
+  useEffect(() => {
     const handleConnectionsUpdated = () => {
       console.log('🔍 Dashboard: received connections updated event');
       const updatedCache = localStorage.getItem('syncup_incoming_profiles_cache');
@@ -99,37 +103,55 @@ const DashboardScreen: React.FC = () => {
 
     window.addEventListener('syncup_connections_updated', handleConnectionsUpdated);
     return () => window.removeEventListener('syncup_connections_updated', handleConnectionsUpdated);
-  }, [incomingRequests, analyzedMatches]);
+  }, []);
 
   useEffect(() => {
-    const cachedSent = localStorage.getItem('syncup_sent_profiles_cache');
-    if (cachedSent) {
-      try { setSentProfiles(JSON.parse(cachedSent)); } catch {}
-    } else {
-      (async () => {
+    const loadSentProfiles = async () => {
+      const cachedSent = localStorage.getItem('syncup_sent_profiles_cache');
+      if (cachedSent) {
+        try { 
+          setSentProfiles(JSON.parse(cachedSent)); 
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse cached sent profiles:', e);
+        }
+      } else {
         const ids = Array.from(connectionRequests) as string[];
         const profiles = await Promise.all(ids.map(id => {
           const existing = analyzedMatches.find(m => String(m.id) === String(id));
           return existing ? existing : loadPublicProfile(id);
         }));
         setSentProfiles(profiles.filter(Boolean) as any[]);
-      })();
-    }
+      }
+    };
+
+    loadSentProfiles();
   }, [connectionRequests, analyzedMatches]);
 
   // Load mutual profiles from cache
   useEffect(() => {
-    const cachedMutual = localStorage.getItem('syncup_mutual_profiles_cache');
-    if (cachedMutual) {
-      try { 
-        const parsed = JSON.parse(cachedMutual);
-        console.log('🔍 Dashboard: loaded mutual profiles from cache:', parsed);
-        setMutualProfiles(parsed); 
-      } catch (e) {
-        console.error('🔍 Dashboard: failed to parse cached mutual profiles:', e);
+    const loadMutualProfiles = async () => {
+      const cachedMutual = localStorage.getItem('syncup_mutual_profiles_cache');
+      if (cachedMutual) {
+        try { 
+          const parsed = JSON.parse(cachedMutual);
+          console.log('🔍 Dashboard: loaded mutual profiles from cache:', parsed);
+          setMutualProfiles(parsed); 
+        } catch (e) {
+          console.error('🔍 Dashboard: failed to parse cached mutual profiles:', e);
+        }
+      } else {
+        // Fallback: load from mutual connections IDs
+        const ids = Array.from(mutualConnections) as string[];
+        const profiles = await Promise.all(ids.map(id => {
+          const existing = analyzedMatches.find(m => String(m.id) === String(id));
+          return existing ? existing : loadPublicProfile(id);
+        }));
+        setMutualProfiles(profiles.filter(Boolean) as any[]);
       }
-    }
-  }, []);
+    };
+
+    loadMutualProfiles();
+  }, [mutualConnections, analyzedMatches]);
 
   // Listen for cache updates from context
   useEffect(() => {

@@ -219,6 +219,11 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     return () => window.removeEventListener('syncup_manual_refresh', handleManualRefresh);
   }, []);
 
+  // Force re-render when connection states change by dispatching custom events
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
+  }, [connectionRequests, incomingRequests, mutualConnections]);
+
   const setQuizAnswer = async (questionId: number, answer: any) => {
     const updatedAnswers = { ...quizAnswers, [questionId]: answer };
     setQuizAnswers(updatedAnswers);
@@ -390,11 +395,14 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     
     setCompanionMessage("Connection request sent! They'll be notified of your interest.");
     
-    // persist locally
+    // persist locally immediately
     const updatedRequests = Array.from(new Set([...Array.from(connectionRequests), matchId]));
     const updatedPending = Array.from(new Set([...Array.from(pendingConnections), matchId]));
     localStorage.setItem('syncup_connection_requests', JSON.stringify(updatedRequests));
     localStorage.setItem('syncup_pending_connections', JSON.stringify(updatedPending));
+    
+    // Force UI update
+    window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
 
     // Immediately hydrate sent profiles cache for UI (avoid waiting for poll)
     try {
@@ -453,11 +461,14 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     
     setCompanionMessage("Connection accepted! You can now chat with this developer.");
     
-    // Update localStorage
+    // Update localStorage immediately
     const updatedIncoming = Array.from(new Set([...Array.from(incomingRequests)].filter(id => id !== matchId)));
     const updatedMutual = Array.from(new Set([...Array.from(mutualConnections), matchId]));
     localStorage.setItem('syncup_incoming_requests', JSON.stringify(updatedIncoming));
     localStorage.setItem('syncup_mutual_connections', JSON.stringify(updatedMutual));
+    
+    // Force UI update
+    window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
 
     try {
       if (!currentUser?.id) return;
@@ -496,9 +507,12 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     
     setCompanionMessage("Connection request rejected.");
     
-    // Update localStorage
+    // Update localStorage immediately
     const updatedIncoming = Array.from(new Set([...Array.from(incomingRequests)].filter(id => id !== matchId)));
     localStorage.setItem('syncup_incoming_requests', JSON.stringify(updatedIncoming));
+    
+    // Force UI update
+    window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
 
     try {
       if (!currentUser?.id) return;

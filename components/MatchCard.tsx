@@ -18,10 +18,12 @@ interface MatchCardProps {
 }
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat }) => {
-  const { likedMatches, toggleLike, passMatch, connectionRequests, sendConnectionRequest } = useProfileBuilder();
+  const { likedMatches, toggleLike, passMatch, connectionRequests, incomingRequests, mutualConnections, sendConnectionRequest } = useProfileBuilder();
   const isLiked = likedMatches.has(match.id);
   const isPassed = false; // We'll implement this
   const hasConnectionRequest = connectionRequests.has(match.id);
+  const hasIncomingRequest = incomingRequests.has(match.id);
+  const hasMutualConnection = mutualConnections.has(match.id);
   const compatibilityScore = score;
   const scoreColor = compatibilityScore > 80 ? 'text-green-400' : compatibilityScore > 60 ? 'text-yellow-400' : 'text-orange-400';
 
@@ -93,8 +95,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat
           <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
         </motion.button>
 
-        {/* Connection Request Button - Only show if liked */}
-        {isLiked && !hasConnectionRequest && (
+        {/* Connection Request Button - Only show if liked and no existing connection */}
+        {isLiked && !hasConnectionRequest && !hasIncomingRequest && !hasMutualConnection && (
           <motion.button 
             onClick={handleConnectionRequest}
             className="p-3 bg-green-500/20 text-green-500 rounded-full"
@@ -106,8 +108,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat
           </motion.button>
         )}
 
-        {/* Chat Button - Only show if liked */}
-        {isLiked && (
+        {/* Chat Button - Only show if liked and has mutual connection */}
+        {isLiked && hasMutualConnection && (
           <motion.button 
             onClick={() => onStartChat(match)}
             className="p-3 bg-brand-primary/20 text-brand-primary rounded-full"
@@ -124,6 +126,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat
       {hasConnectionRequest && (
         <div className="mt-2 text-xs text-green-500 bg-green-500/10 px-3 py-1 rounded-full">
           Connection request sent
+        </div>
+      )}
+      {hasIncomingRequest && (
+        <div className="mt-2 text-xs text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full">
+          Connection request received
+        </div>
+      )}
+      {hasMutualConnection && (
+        <div className="mt-2 text-xs text-purple-500 bg-purple-500/10 px-3 py-1 rounded-full">
+          Connected
         </div>
       )}
     </motion.div>
