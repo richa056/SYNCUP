@@ -481,6 +481,9 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     } catch (e) {
       console.error('Failed to accept connection request:', e);
     }
+
+    // Remove accepted user from matches and refill
+    await removeMatchAndRefill(matchId);
   };
 
   const rejectConnectionRequest = async (matchId: string) => {
@@ -515,6 +518,9 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     } catch (e) {
       console.error('Failed to reject connection request:', e);
     }
+
+    // Remove rejected user from matches and refill
+    await removeMatchAndRefill(matchId);
   };
 
   const toggleLike = (matchId: string) => {
@@ -680,9 +686,12 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     const exclude = new Set<string>();
     Array.from(passedMatches).forEach(id => exclude.add(String(id)));
     Array.from(connectionRequests).forEach(id => exclude.add(String(id)));
+    Array.from(incomingRequests).forEach(id => exclude.add(String(id)));
+    Array.from(mutualConnections).forEach(id => exclude.add(String(id)));
+    Array.from(pendingConnections).forEach(id => exclude.add(String(id)));
     Array.from(likedMatches).forEach(id => exclude.add(String(id)));
     return analyzedMatches.filter((m: any) => !exclude.has(String(m.id)));
-  }, [analyzedMatches, passedMatches, connectionRequests, likedMatches]);
+  }, [analyzedMatches, passedMatches, connectionRequests, incomingRequests, mutualConnections, pendingConnections, likedMatches]);
 
   const value = {
     quizAnswers,
