@@ -49,6 +49,11 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
   // Check if we have a mutual connection
   const hasMutualConnection = mutualConnections.has(matchId || '');
   
+  // Safe fallbacks when profile isn't hydrated yet
+  const displayName = otherProfile?.name || 'Developer';
+  const displayAvatar = otherProfile?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=64&background=random`;
+  const displayCodename = otherProfile?.codename || '';
+
   // If we have a mutual connection but no profile in buffer, fetch minimal public profile
   useEffect(() => {
     const fetchPublicProfileIfNeeded = async () => {
@@ -222,13 +227,13 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
           
           <div className="flex items-center space-x-3">
             <img
-              src={otherProfile.avatarUrl}
-              alt={otherProfile.name}
+              src={displayAvatar}
+              alt={displayName}
               className="w-10 h-10 rounded-full border-2 border-white/20"
             />
             <div>
-              <h1 className="text-white font-semibold">{otherProfile.name}</h1>
-              <p className="text-white/70 text-sm">{otherProfile.codename}</p>
+              <h1 className="text-white font-semibold">{displayName}</h1>
+              <p className="text-white/70 text-sm">{displayCodename}</p>
             </div>
           </div>
         </div>
@@ -239,7 +244,7 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
         {messages.length === 0 ? (
           <div className="text-center text-white/70 py-8">
             <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>Start a conversation with {otherProfile.name}!</p>
+            <p>Start a conversation with {displayName}!</p>
             <p className="text-sm">Send the first message to begin chatting.</p>
           </div>
         ) : (

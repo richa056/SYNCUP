@@ -40,8 +40,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, score, reason, onStartChat
     >
       <div className="relative">
         <motion.img 
-          src={match.avatarUrl} 
-          alt={match.name} 
+          src={match.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(match.name || 'Developer')}&size=96&background=random`} 
+          alt={match.name || 'Developer'} 
           className="w-24 h-24 rounded-full border-4 border-brand-accent"
           whileHover={{ scale: 1.1 }}
         />
