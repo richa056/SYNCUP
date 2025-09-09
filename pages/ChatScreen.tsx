@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useProfileBuilder } from '../context/ProfileBuilderContext';
 import { Send, ArrowLeft, User, MessageCircle } from 'lucide-react';
 import { messagingService } from '../services/messagingService';
+import { apiCall } from '../utils/api';
 
 interface Message {
   id: string;
@@ -41,12 +42,29 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   
-  // Find the profile we're chatting with
-  const otherProfile = analyzedMatches.find(profile => profile.id === matchId);
+  // Find the profile we're chatting with (may not be in analyzedMatches after actions)
+  const [fallbackProfile, setFallbackProfile] = useState<any | null>(null);
+  const otherProfile = analyzedMatches.find(profile => profile.id === matchId) || fallbackProfile;
   
   // Check if we have a mutual connection
   const hasMutualConnection = mutualConnections.has(matchId || '');
   
+  // If we have a mutual connection but no profile in buffer, fetch minimal public profile
+  useEffect(() => {
+    const fetchPublicProfileIfNeeded = async () => {
+      if (!matchId || !hasMutualConnection) return;
+      if (otherProfile) return;
+      try {
+        const res = await apiCall(`/api/users/public/${matchId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFallbackProfile({ ...data, id: data.id || data._id });
+        }
+      } catch {}
+    };
+    fetchPublicProfileIfNeeded();
+  }, [matchId, hasMutualConnection, otherProfile]);
+
   // Establish SSE connection and subscribe to this conversation
   useEffect(() => {
     if (!currentUser?.id || !matchId || !hasMutualConnection) return;
@@ -71,9 +89,9 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
         // mark seen ids to avoid duplicates later
         normalized.forEach(n => seenIdsRef.current.add(n.id));
         setMessages(prev => {
-          const existing = new Map(prev.map(m => [m.id, m]));
-          normalized.forEach(n => existing.set(n.id, n));
-          return Array.from(existing.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          const existing = new Map(prev.map((m: Message) => [m.id, m]));
+          normalized.forEach((n: Message) => existing.set(n.id, n));
+          return Array.from(existing.values()).sort((a: Message, b: Message) => a.timestamp.getTime() - b.timestamp.getTime());
         });
       }
     })();
@@ -173,7 +191,7 @@ const ChatScreen: React.FC<ChatScreenProps> = () => {
     }
   };
   
-  if (!otherProfile || !hasMutualConnection) {
+  if (!hasMutualConnection) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center">
         <div className="text-center text-white">
