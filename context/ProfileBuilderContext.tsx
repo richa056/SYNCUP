@@ -313,16 +313,10 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
         try {
           let similarUsers: UserSimilarity[] = [];
           try {
-            const timeoutPromise: Promise<UserSimilarity[]> = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Database query timeout')), 10000)
-            );
-            
-            similarUsers = await Promise.race<UserSimilarity[] | Promise<UserSimilarity[]>>([
-              findMostSimilarUsers(currentUser.id, quizAnswers, memeReactions, performanceMetrics),
-              timeoutPromise
-            ]);
-          } catch (dbTimeoutError) {
-            console.error('❌ Database query timeout or error:', dbTimeoutError);
+            // Remove timeout - let the database query complete naturally
+            similarUsers = await findMostSimilarUsers(currentUser.id, quizAnswers, memeReactions, performanceMetrics);
+          } catch (dbError) {
+            console.error('❌ Database query error:', dbError);
             similarUsers = []; // Empty array to continue
           }
           
@@ -340,8 +334,41 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
             setAnalyzedMatches(profileData);
             setCompanionMessage(`Found ${similarUsers.length} developers with similar preferences!`);
           } else {
-            setAnalyzedMatches([]);
-            setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
+            // Try fallback matching - get any users from database
+            console.log('🔄 No similar users found, trying fallback matching...');
+            try {
+              const fallbackResponse = await apiCall('/api/users/fallback-matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentUserId: currentUser.id })
+              });
+              
+              if (fallbackResponse.ok) {
+                const fallbackMatches = await fallbackResponse.json();
+                if (fallbackMatches.length > 0) {
+                  const profileData = fallbackMatches.map((match: any) => ({
+                    ...match,
+                    id: match._id || match.id,
+                    matchScore: 50, // Default score for fallback matches
+                    matchReasons: ['New developer on the platform'],
+                    compatibility: 'medium'
+                  }));
+                  
+                  setAnalyzedMatches(profileData);
+                  setCompanionMessage(`Found ${fallbackMatches.length} developers to connect with!`);
+                } else {
+                  setAnalyzedMatches([]);
+                  setCompanionMessage("No other developers found yet. You'll see matches when more developers join!");
+                }
+              } else {
+                setAnalyzedMatches([]);
+                setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
+              }
+            } catch (fallbackError) {
+              console.error('Fallback matching failed:', fallbackError);
+              setAnalyzedMatches([]);
+              setCompanionMessage("No developers with similar preferences found yet. You'll see matches when more developers join!");
+            }
           }
         } catch (dbError) {
           console.log('Database matching failed, no similar users found:', dbError);

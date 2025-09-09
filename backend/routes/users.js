@@ -280,12 +280,21 @@ router.post('/similar', async (req, res) => {
     
     console.log('🔍 Finding similar users for:', currentUserId);
     
-    // Find ALL users who have quiz answers and meme reactions (excluding current user)
-    const potentialMatches = await User.find({
+    // Find users with at least some profile data (quiz answers OR meme reactions)
+    let potentialMatches = await User.find({
       _id: { $ne: currentUserId },
-      quizAnswers: { $exists: true, $ne: {} },
-      memeReactions: { $exists: true, $ne: [] }
+      $or: [
+        { quizAnswers: { $exists: true, $ne: {} } },
+        { memeReactions: { $exists: true, $ne: [] } }
+      ]
     }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
+    
+    // If no matches found with the above criteria, get any users (except current user)
+    if (potentialMatches.length === 0) {
+      potentialMatches = await User.find({
+        _id: { $ne: currentUserId }
+      }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
+    }
     
     console.log(`📊 Found ${potentialMatches.length} potential matches for user ${currentUserId}`);
     
@@ -382,26 +391,20 @@ router.post('/realtime-match', async (req, res) => {
     
     console.log('✅ Found user with complete profile:', currentUser.name);
     
-    // Tiered fetch to guarantee matches
+    // Tiered fetch to guarantee matches - start with users who have any profile data
     let potentialMatches = await User.find({
       _id: { $ne: currentUserId },
-      quizAnswers: { $exists: true, $ne: {} },
-      memeReactions: { $exists: true, $ne: [] }
+      $or: [
+        { quizAnswers: { $exists: true, $ne: {} } },
+        { memeReactions: { $exists: true, $ne: [] } }
+      ]
     }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
 
+    // If still no matches, get ANY users (except current user)
     if (!potentialMatches || potentialMatches.length === 0) {
       potentialMatches = await User.find({
-        _id: { $ne: currentUserId },
-        $or: [
-          { quizAnswers: { $exists: true, $ne: {} } },
-          { memeReactions: { $exists: true, $ne: [] } }
-        ]
+        _id: { $ne: currentUserId }
       }).select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
-    }
-
-    if (!potentialMatches || potentialMatches.length === 0) {
-      potentialMatches = await User.find({ _id: { $ne: currentUserId } })
-        .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider quizAnswers memeReactions');
     }
     
     console.log(`🔄 Found ${potentialMatches.length} potential real-time matches`);
@@ -903,6 +906,30 @@ router.get('/connections/state/:userId', async (req, res) => {
   } catch (e) {
     console.error('get state error', e);
     res.status(500).json({ error: 'Failed to get state' });
+  }
+});
+
+// Fallback matches endpoint - returns any users when no similar users found
+router.post('/fallback-matches', async (req, res) => {
+  try {
+    const { currentUserId } = req.body;
+    
+    console.log('🔄 Fallback matching for user:', currentUserId);
+    
+    // Get any users except current user, limit to 10
+    const fallbackMatches = await User.find({
+      _id: { $ne: currentUserId }
+    })
+    .select('name avatarUrl codename badges traits trustLevel profileRating devDna provider')
+    .limit(10);
+    
+    console.log(`📊 Found ${fallbackMatches.length} fallback matches`);
+    
+    res.json(fallbackMatches);
+    
+  } catch (error) {
+    console.error('❌ Error in fallback matching:', error);
+    res.status(500).json({ error: 'Failed to find fallback matches' });
   }
 });
 
