@@ -794,6 +794,8 @@ router.post('/pass', async (req, res) => {
 router.post('/connections/request', async (req, res) => {
   try {
     const { fromUserId, toUserId } = req.body;
+    console.log('🔄 Backend: Connection request received:', { fromUserId, toUserId });
+    
     if (!fromUserId || !toUserId || fromUserId === toUserId) {
       return res.status(400).json({ error: 'Invalid user ids' });
     }
@@ -804,19 +806,38 @@ router.post('/connections/request', async (req, res) => {
     ]);
     if (!fromUser || !toUser) return res.status(404).json({ error: 'User not found' });
 
+    console.log('🔄 Backend: Users found:', { 
+      fromUserName: fromUser.name, 
+      toUserName: toUser.name,
+      fromUserSent: fromUser.connectionRequestsSent?.length || 0,
+      toUserIncoming: toUser.connectionRequestsIncoming?.length || 0
+    });
+
     // Block request if receiver has passed the sender
     const receiverPassed = new Set((toUser.passedMatches || []).map(id => String(id)));
     if (receiverPassed.has(String(fromUser._id))) {
+      console.log('❌ Backend: Request blocked - receiver passed sender');
       return res.status(403).json({ error: 'User has passed you' });
     }
 
     // Prevent duplicates
     const sentSet = new Set((fromUser.connectionRequestsSent || []).map(id => String(id)));
     const incomingSet = new Set((toUser.connectionRequestsIncoming || []).map(id => String(id)));
-    if (!sentSet.has(String(toUser._id))) fromUser.connectionRequestsSent.push(toUser._id);
-    if (!incomingSet.has(String(fromUser._id))) toUser.connectionRequestsIncoming.push(fromUser._id);
+    
+    const wasAlreadySent = sentSet.has(String(toUser._id));
+    const wasAlreadyIncoming = incomingSet.has(String(fromUser._id));
+    
+    if (!wasAlreadySent) {
+      fromUser.connectionRequestsSent.push(toUser._id);
+      console.log('✅ Backend: Added to sender\'s sent requests');
+    }
+    if (!wasAlreadyIncoming) {
+      toUser.connectionRequestsIncoming.push(fromUser._id);
+      console.log('✅ Backend: Added to receiver\'s incoming requests');
+    }
 
     await Promise.all([fromUser.save(), toUser.save()]);
+    console.log('✅ Backend: Connection request saved successfully');
 
     // Send real-time notification to receiver
     try {
@@ -827,13 +848,14 @@ router.post('/connections/request', async (req, res) => {
         fromUserName: fromUser.name,
         fromUserAvatar: fromUser.avatarUrl
       });
+      console.log('✅ Backend: Real-time notification sent');
     } catch (e) {
-      console.warn('Failed to send real-time notification:', e);
+      console.warn('❌ Backend: Failed to send real-time notification:', e);
     }
 
     res.json({ success: true });
   } catch (e) {
-    console.error('send request error', e);
+    console.error('❌ Backend: send request error', e);
     res.status(500).json({ error: 'Failed to send request' });
   }
 });
@@ -894,6 +916,7 @@ router.get('/connections/state/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const includeProfiles = String(req.query.includeProfiles || 'false') === 'true';
+    console.log('🔄 Backend: Connection state requested for user:', userId, 'includeProfiles:', includeProfiles);
 
     const user = await User.findById(userId).select('connectionRequestsSent connectionRequestsIncoming mutualConnections');
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -903,6 +926,16 @@ router.get('/connections/state/:userId', async (req, res) => {
       incoming: user.connectionRequestsIncoming || [],
       mutual: user.mutualConnections || []
     };
+    
+    console.log('🔄 Backend: Connection state for user:', {
+      userId,
+      sentCount: payload.sent.length,
+      incomingCount: payload.incoming.length,
+      mutualCount: payload.mutual.length,
+      sent: payload.sent,
+      incoming: payload.incoming,
+      mutual: payload.mutual
+    });
 
     if (includeProfiles) {
       const [sentDocs, incomingDocs, mutualDocs] = await Promise.all([

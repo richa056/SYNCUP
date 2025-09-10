@@ -174,9 +174,20 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (!currentUser?.id) return;
       console.log('🔄 Context: refreshing connection state for user:', currentUser.id);
       const res = await apiCall(`/api/users/connections/state/${currentUser.id}?includeProfiles=true`);
-      if (!res.ok) throw new Error('Failed to load connection state');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('❌ Context: Failed to load connection state:', res.status, errorText);
+        throw new Error('Failed to load connection state');
+      }
       const data = await res.json();
-      console.log('🔄 Context: received connection state:', data);
+      console.log('🔄 Context: received connection state:', {
+        sent: data.sent,
+        incoming: data.incoming,
+        mutual: data.mutual,
+        sentProfiles: data.sentProfiles?.length || 0,
+        incomingProfiles: data.incomingProfiles?.length || 0,
+        mutualProfiles: data.mutualProfiles?.length || 0
+      });
       
       // Only update if backend has different data to prevent unnecessary re-renders
       setConnectionRequests(prev => {
