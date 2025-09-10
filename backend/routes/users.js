@@ -818,6 +818,19 @@ router.post('/connections/request', async (req, res) => {
 
     await Promise.all([fromUser.save(), toUser.save()]);
 
+    // Send real-time notification to receiver
+    try {
+      const { sendConnectionNotification } = await import('./messaging.js');
+      await sendConnectionNotification(toUser._id, {
+        type: 'connection_request',
+        fromUserId: fromUser._id,
+        fromUserName: fromUser.name,
+        fromUserAvatar: fromUser.avatarUrl
+      });
+    } catch (e) {
+      console.warn('Failed to send real-time notification:', e);
+    }
+
     res.json({ success: true });
   } catch (e) {
     console.error('send request error', e);

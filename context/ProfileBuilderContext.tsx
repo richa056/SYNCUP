@@ -204,7 +204,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => {
     if (!currentUser?.id) return;
     refreshConnectionState();
-    const id = setInterval(() => refreshConnectionState(), 5000);
+    const id = setInterval(() => refreshConnectionState(), 2000);
     return () => clearInterval(id);
   }, [currentUser?.id]);
 
@@ -775,5 +775,4 @@ export const useProfileBuilder = () => {
   }
   return context;
 };
-
 

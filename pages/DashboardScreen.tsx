@@ -56,6 +56,7 @@ const DashboardScreen: React.FC = () => {
   const [incomingProfiles, setIncomingProfiles] = useState<any[]>([]);
   const [sentProfiles, setSentProfiles] = useState<any[]>([]);
   const [mutualProfiles, setMutualProfiles] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     const loadIncomingProfiles = async () => {
@@ -84,6 +85,64 @@ const DashboardScreen: React.FC = () => {
 
     loadIncomingProfiles();
   }, [incomingRequests, analyzedMatches]);
+
+  // Detect new incoming requests and show notifications
+  useEffect(() => {
+    const previousIncoming = JSON.parse(localStorage.getItem('syncup_previous_incoming') || '[]');
+    const currentIncoming = Array.from(incomingRequests);
+    
+    // Find new incoming requests
+    const newRequests = currentIncoming.filter(id => !previousIncoming.includes(id));
+    
+    if (newRequests.length > 0) {
+      // Show notification for new requests
+      newRequests.forEach(requestId => {
+        const profile = analyzedMatches.find(m => String(m.id) === String(requestId));
+        if (profile) {
+          setNotifications(prev => [...prev, {
+            id: `req_${requestId}_${Date.now()}`,
+            type: 'connection_request',
+            message: `${profile.name} sent you a connection request!`,
+            profileId: requestId,
+            profileName: profile.name,
+            timestamp: Date.now()
+          }]);
+        }
+      });
+      
+      // Update previous incoming for next comparison
+      localStorage.setItem('syncup_previous_incoming', JSON.stringify(currentIncoming));
+    }
+  }, [incomingRequests, analyzedMatches]);
+
+  // Detect new mutual connections and show notifications
+  useEffect(() => {
+    const previousMutual = JSON.parse(localStorage.getItem('syncup_previous_mutual') || '[]');
+    const currentMutual = Array.from(mutualConnections);
+    
+    // Find new mutual connections
+    const newMutual = currentMutual.filter(id => !previousMutual.includes(id));
+    
+    if (newMutual.length > 0) {
+      // Show notification for new mutual connections
+      newMutual.forEach(connectionId => {
+        const profile = analyzedMatches.find(m => String(m.id) === String(connectionId));
+        if (profile) {
+          setNotifications(prev => [...prev, {
+            id: `mutual_${connectionId}_${Date.now()}`,
+            type: 'mutual_connection',
+            message: `You and ${profile.name} are now connected! You can start chatting.`,
+            profileId: connectionId,
+            profileName: profile.name,
+            timestamp: Date.now()
+          }]);
+        }
+      });
+      
+      // Update previous mutual for next comparison
+      localStorage.setItem('syncup_previous_mutual', JSON.stringify(currentMutual));
+    }
+  }, [mutualConnections, analyzedMatches]);
 
   // Listen for cache updates from context
   useEffect(() => {
@@ -281,6 +340,21 @@ const DashboardScreen: React.FC = () => {
   const handleRejectRequest = (profileId: string) => {
     rejectConnectionRequest(profileId);
   };
+
+  const dismissNotification = (notificationId: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  };
+
+  // Auto-dismiss notifications after 5 seconds
+  useEffect(() => {
+    notifications.forEach(notification => {
+      const timer = setTimeout(() => {
+        dismissNotification(notification.id);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    });
+  }, [notifications]);
 
   const renderMatchesTab = () => (
     <div className="space-y-6">
@@ -658,6 +732,45 @@ const DashboardScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Notifications */}
+      {notifications.length > 0 && (
+        <div className="fixed top-20 right-4 z-50 space-y-2">
+          {notifications.map(notification => (
+            <motion.div
+              key={notification.id}
+              initial={{ opacity: 0, x: 300 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 300 }}
+              className="bg-green-500 text-white p-4 rounded-lg shadow-lg max-w-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">New Connection Request!</p>
+                  <p className="text-sm opacity-90">{notification.message}</p>
+                </div>
+                <button
+                  onClick={() => dismissNotification(notification.id)}
+                  className="ml-2 text-white hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setActiveTab('connections');
+                    dismissNotification(notification.id);
+                  }}
+                  className="px-3 py-1 bg-white/20 rounded text-sm hover:bg-white/30"
+                >
+                  View
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-6">
