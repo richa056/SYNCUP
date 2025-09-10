@@ -78,21 +78,13 @@ passport.use(new GitHubStrategy({
           name: profile.displayName || profile.username,
           email: userEmail,
           avatarUrl: profile.photos?.[0]?.value || 'https://i.pravatar.cc/150',
-          // Add default DeveloperProfile fields
-          codename: 'GitHub_' + Math.random().toString(36).substr(2, 6),
-          badges: ['GitHub Master', 'Code Collaborator', 'Open Source Enthusiast'],
-          traits: ['Version Control Pro', 'Pull Request Expert', 'Community Builder'],
-          trustLevel: 85,
-          profileRating: 88,
-          devDna: computedDevDna || {
-            topLanguages: [
-              { lang: 'JavaScript', value: 45 },
-              { lang: 'Python', value: 30 },
-              { lang: 'Go', value: 25 }
-            ],
-            commitFrequency: 8,
-            starCount: 150
-          }
+          // Real data only - no mock defaults
+          codename: null, // Will be generated from quiz answers
+          badges: [], // Will be generated from quiz answers
+          traits: [], // Will be generated from quiz answers
+          trustLevel: null, // Will be calculated from real data
+          profileRating: null, // Will be calculated from real data
+          devDna: computedDevDna || null // Only real GitHub data
         });
       } else {
         // Optionally refresh Dev DNA on login (best-effort; ignore failures)
@@ -132,21 +124,13 @@ passport.use(new GoogleStrategy({
           name: profile.displayName || 'Google User',
           email: userEmail,
           avatarUrl: profile.photos?.[0]?.value || 'https://i.pravatar.cc/150',
-          // Add default DeveloperProfile fields
-          codename: 'Google_' + Math.random().toString(36).substr(2, 6),
-          badges: ['Cloud Native', 'API Architect', 'Full Stack Developer'],
-          traits: ['Innovation Driven', 'Scale Thinker', 'User Centric'],
-          trustLevel: 82,
-          profileRating: 85,
-          devDna: {
-            topLanguages: [
-              { lang: 'TypeScript', value: 50 },
-              { lang: 'Python', value: 35 },
-              { lang: 'Java', value: 15 }
-            ],
-            commitFrequency: 7,
-            starCount: 120
-          }
+          // Real data only - no mock defaults
+          codename: null, // Will be generated from quiz answers
+          badges: [], // Will be generated from quiz answers
+          traits: [], // Will be generated from quiz answers
+          trustLevel: null, // Will be calculated from real data
+          profileRating: null, // Will be calculated from real data
+          devDna: null // No mock data
         });
       }
       return done(null, user);

@@ -14,24 +14,13 @@ const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     avatarUrl: { type: String },
     
-    // Developer Profile fields with defaults
-    codename: { type: String, default: 'Dev_' + Math.random().toString(36).substr(2, 6) },
-    badges: { type: [String], default: ['New Developer'] },
-    traits: { type: [String], default: ['Eager Learner'] },
-    trustLevel: { type: Number, default: 75 },
-    profileRating: { type: Number, default: 80 },
-    devDna: { 
-        type: DevDnaSchema, 
-        default: {
-            topLanguages: [
-                { lang: 'JavaScript', value: 40 },
-                { lang: 'Python', value: 30 },
-                { lang: 'HTML/CSS', value: 30 }
-            ],
-            commitFrequency: 5,
-            starCount: 10
-        }
-    },
+    // Developer Profile fields - no mock defaults
+    codename: { type: String }, // Will be generated from quiz answers
+    badges: { type: [String] }, // Will be generated from quiz answers
+    traits: { type: [String] }, // Will be generated from quiz answers
+    trustLevel: { type: Number }, // Will be calculated from real data
+    profileRating: { type: Number }, // Will be calculated from real data
+    devDna: { type: DevDnaSchema }, // Only real data
 
     // Onboarding Data
     quizAnswers: { type: mongoose.Schema.Types.Mixed, default: {} },

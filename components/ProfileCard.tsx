@@ -71,17 +71,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, onPass, onCh
 
       {/* Profile Stats */}
       <div className="p-6">
-        {/* Trust Level & Rating */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">{profile.trustLevel || 0}%</div>
-            <div className="text-sm text-gray-600">Trust Level</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-pink-600">{profile.profileRating || 0}/5.0</div>
-            <div className="text-sm text-gray-600">Profile Rating</div>
-          </div>
-        </div>
+        {/* Real Data Only - No Mock Ratings */}
 
         {/* Traits */}
         <div className="mb-6">
@@ -102,36 +92,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, onPass, onCh
           </div>
         </div>
 
-        {/* Dev DNA */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">Developer DNA</h3>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Work Style</span>
-                <span className="font-medium">{profile.devDna?.workStyle || 'Not specified'}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Problem Solving</span>
-                <span className="font-medium">{profile.devDna?.problemSolving || 'Not specified'}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Team Collaboration</span>
-                <span className="font-medium">{profile.devDna?.teamCollaboration || 'Not specified'}</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Learning Style</span>
-                <span className="font-medium">{profile.devDna?.learningStyle || 'Not specified'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Real Data Only - No Mock Dev DNA */}
 
         {/* Top Languages */}
         {profile.devDna?.topLanguages && profile.devDna.topLanguages.length > 0 && (
@@ -156,17 +117,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, onPass, onCh
           </div>
         )}
 
-        {/* GitHub Stats */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-xl font-bold text-gray-800">{profile.devDna?.commitFrequency || 0}</div>
-            <div className="text-sm text-gray-600">Commits/Month</div>
-          </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-xl font-bold text-gray-800">{profile.devDna?.starCount || 0}</div>
-            <div className="text-sm text-gray-600">Stars Earned</div>
-          </div>
-        </div>
+        {/* Real Data Only - No Mock GitHub Stats */}
       </div>
 
       {/* Action Buttons */}

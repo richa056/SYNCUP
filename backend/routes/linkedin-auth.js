@@ -147,20 +147,12 @@ router.get('/linkedin/callback', async (req, res) => {
                     name: profile.name || profile.given_name + ' ' + profile.family_name || 'LinkedIn User',
                     email: profile.email || `linkedin_${profile.sub}@syncup.local`,
                     avatarUrl: profile.picture || 'https://i.pravatar.cc/150',
-                    codename: 'LinkedIn_' + Math.random().toString(36).substr(2, 6),
-                    badges: ['Professional Networker', 'Industry Expert', 'Career Developer'],
-                    traits: ['Business Minded', 'Network Builder', 'Professional Growth'],
-                    trustLevel: 88,
-                    profileRating: 90,
-                    devDna: {
-                        topLanguages: [
-                            { lang: 'JavaScript', value: 40 },
-                            { lang: 'Python', value: 35 },
-                            { lang: 'SQL', value: 25 }
-                        ],
-                        commitFrequency: 6,
-                        starCount: 80
-                    }
+                    codename: null, // Will be generated from quiz answers
+                    badges: [], // Will be generated from quiz answers
+                    traits: [], // Will be generated from quiz answers
+                    trustLevel: null, // Will be calculated from real data
+                    profileRating: null, // Will be calculated from real data
+                    devDna: null // No mock data
                 });
                 console.log('New user created:', user.name);
             } catch (createError) {
