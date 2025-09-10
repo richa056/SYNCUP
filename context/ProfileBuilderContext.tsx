@@ -171,9 +171,28 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (!res.ok) throw new Error('Failed to load connection state');
       const data = await res.json();
       console.log('🔄 Context: received connection state:', data);
-      setConnectionRequests(new Set((data.sent || []).map((id: string) => String(id))));
-      setIncomingRequests(new Set((data.incoming || []).map((id: string) => String(id))));
-      setMutualConnections(new Set((data.mutual || []).map((id: string) => String(id))));
+      
+      // Merge with existing state instead of overriding to prevent button reset
+      setConnectionRequests(prev => {
+        const backendSent = new Set((data.sent || []).map((id: string) => String(id)));
+        const merged = new Set([...prev, ...backendSent]);
+        console.log('🔄 Merged connection requests:', Array.from(merged));
+        return merged;
+      });
+      
+      setIncomingRequests(prev => {
+        const backendIncoming = new Set((data.incoming || []).map((id: string) => String(id)));
+        const merged = new Set([...prev, ...backendIncoming]);
+        console.log('🔄 Merged incoming requests:', Array.from(merged));
+        return merged;
+      });
+      
+      setMutualConnections(prev => {
+        const backendMutual = new Set((data.mutual || []).map((id: string) => String(id)));
+        const merged = new Set([...prev, ...backendMutual]);
+        console.log('🔄 Merged mutual connections:', Array.from(merged));
+        return merged;
+      });
       // store hydrated profiles for dashboard
       if (Array.isArray(data.incomingProfiles)) {
         console.log('🔄 Context: storing incoming profiles in cache:', data.incomingProfiles);
@@ -204,7 +223,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => {
     if (!currentUser?.id) return;
     refreshConnectionState();
-    const id = setInterval(() => refreshConnectionState(), 2000);
+    const id = setInterval(() => refreshConnectionState(), 10000);
     return () => clearInterval(id);
   }, [currentUser?.id]);
 

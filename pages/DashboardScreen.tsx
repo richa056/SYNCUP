@@ -166,19 +166,24 @@ const DashboardScreen: React.FC = () => {
 
   useEffect(() => {
     const loadSentProfiles = async () => {
+      console.log('🔄 Loading sent profiles, connectionRequests:', Array.from(connectionRequests));
       const cachedSent = localStorage.getItem('syncup_sent_profiles_cache');
       if (cachedSent) {
         try { 
-          setSentProfiles(JSON.parse(cachedSent)); 
+          const parsed = JSON.parse(cachedSent);
+          console.log('🔄 Loaded sent profiles from cache:', parsed);
+          setSentProfiles(parsed); 
         } catch (e) {
           console.error('🔍 Dashboard: failed to parse cached sent profiles:', e);
         }
       } else {
+        console.log('🔄 No cached sent profiles, fetching from IDs:', Array.from(connectionRequests));
         const ids = Array.from(connectionRequests) as string[];
         const profiles = await Promise.all(ids.map(id => {
           const existing = analyzedMatches.find(m => String(m.id) === String(id));
           return existing ? existing : loadPublicProfile(id);
         }));
+        console.log('🔄 Fetched sent profiles from IDs:', profiles);
         setSentProfiles(profiles.filter(Boolean) as any[]);
       }
     };
@@ -720,23 +725,26 @@ const DashboardScreen: React.FC = () => {
             </div>
 
             {/* User Menu + Logout */}
-            <div className="flex items-center space-x-3">
-              <div className="text-right text-white">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* User info - hidden on mobile */}
+              <div className="hidden sm:block text-right text-white">
                 <div className="text-sm font-medium">{currentUser.name}</div>
                 <div className="text-xs opacity-70">{currentUser.codename}</div>
               </div>
+              {/* Avatar - smaller on mobile */}
               <img
                 src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&size=32&background=random`}
                 alt={currentUser.name}
-                className="w-8 h-8 rounded-full border-2 border-white/30"
+                className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white/30"
               />
+              {/* Logout button - more prominent on mobile */}
               <button
                 onClick={handleLogout}
-                className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-1"
+                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs flex items-center gap-1"
                 title="Logout"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="text-xs sm:text-sm">Logout</span>
+                <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="text-xs">Logout</span>
               </button>
             </div>
           </div>
