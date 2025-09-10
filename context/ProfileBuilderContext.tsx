@@ -457,15 +457,32 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
     // call backend
     try {
       if (!currentUser?.id) return;
+      console.log('🔄 Sending connection request:', { fromUserId: currentUser.id, toUserId: matchId });
       const res = await apiCall('/api/users/connections/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromUserId: currentUser.id, toUserId: matchId })
       });
-      if (!res.ok) throw new Error('request failed');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('❌ Connection request failed:', res.status, errorText);
+        throw new Error('request failed');
+      }
+      console.log('✅ Connection request sent successfully');
       await refreshConnectionState();
     } catch (e) {
       console.error('Failed to send connection request:', e);
+      // Revert optimistic update on failure
+      setConnectionRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchId);
+        return newSet;
+      });
+      setPendingConnections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchId);
+        return newSet;
+      });
     }
 
     // Don't remove from current matches - keep them visible for status updates

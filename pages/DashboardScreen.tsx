@@ -277,6 +277,16 @@ const DashboardScreen: React.FC = () => {
   const currentProfileLikeState = currentProfile && currentProfile.id ? likedMatches.has(currentProfile.id) : false;
   const currentProfileConnectionState = currentProfile && currentProfile.id ? connectionRequests.has(currentProfile.id) : false;
   const currentProfileMutualState = currentProfile && currentProfile.id ? mutualConnections.has(currentProfile.id) : false;
+  
+  // Debug logging for connection state
+  console.log('🔍 Current Profile Connection State:', {
+    profileId: currentProfile?.id,
+    isLiked: currentProfileLikeState,
+    hasConnectionRequest: currentProfileConnectionState,
+    isMutualConnection: currentProfileMutualState,
+    connectionRequests: Array.from(connectionRequests),
+    mutualConnections: Array.from(mutualConnections)
+  });
 
   // (settings removed)
 
@@ -726,7 +736,7 @@ const DashboardScreen: React.FC = () => {
                 title="Logout"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
+                <span className="text-xs sm:text-sm">Logout</span>
               </button>
             </div>
           </div>
