@@ -69,14 +69,17 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   });
   const [connectionRequests, setConnectionRequests] = useState<Set<string>>(() => {
     const stored = getFromStorage('syncup_connection_requests', []);
+    console.log('🔄 Initial connection requests from localStorage:', stored);
     return new Set(stored);
   });
   const [incomingRequests, setIncomingRequests] = useState<Set<string>>(() => {
     const stored = getFromStorage('syncup_incoming_requests', []);
+    console.log('🔄 Initial incoming requests from localStorage:', stored);
     return new Set(stored);
   });
   const [mutualConnections, setMutualConnections] = useState<Set<string>>(() => {
     const stored = getFromStorage('syncup_mutual_connections', []);
+    console.log('🔄 Initial mutual connections from localStorage:', stored);
     return new Set(stored);
   });
   const [passedMatches, setPassedMatches] = useState<Set<string>>(() => {
@@ -143,10 +146,13 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   // Listen for localStorage changes from other tabs to enable real-time sync
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
+      console.log('🔄 Storage change detected:', e.key, e.newValue);
       if (e.key === LIKED_MATCHES_KEY && e.newValue) {
         setLikedMatches(new Set(JSON.parse(e.newValue)));
       } else if (e.key === 'syncup_connection_requests' && e.newValue) {
-        setConnectionRequests(new Set(JSON.parse(e.newValue)));
+        const newRequests = new Set(JSON.parse(e.newValue));
+        console.log('🔄 Updating connection requests from storage:', Array.from(newRequests));
+        setConnectionRequests(newRequests);
       } else if (e.key === 'syncup_incoming_requests' && e.newValue) {
         setIncomingRequests(new Set(JSON.parse(e.newValue)));
       } else if (e.key === 'syncup_mutual_connections' && e.newValue) {
@@ -172,26 +178,54 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       const data = await res.json();
       console.log('🔄 Context: received connection state:', data);
       
-      // Merge with existing state instead of overriding to prevent button reset
+      // Only update if backend has different data to prevent unnecessary re-renders
       setConnectionRequests(prev => {
         const backendSent = new Set((data.sent || []).map((id: string) => String(id)));
-        const merged = new Set([...prev, ...backendSent]);
-        console.log('🔄 Merged connection requests:', Array.from(merged));
-        return merged;
+        const currentSent = new Set(prev);
+        
+        // Check if there are any differences
+        const hasNewSent = [...backendSent].some(id => !currentSent.has(id));
+        const hasRemovedSent = [...currentSent].some(id => !backendSent.has(id));
+        
+        if (hasNewSent || hasRemovedSent) {
+          console.log('🔄 Updating connection requests:', Array.from(backendSent));
+          return backendSent;
+        }
+        
+        console.log('🔄 Connection requests unchanged, keeping current state');
+        return prev; // Keep current state to prevent re-render
       });
       
       setIncomingRequests(prev => {
         const backendIncoming = new Set((data.incoming || []).map((id: string) => String(id)));
-        const merged = new Set([...prev, ...backendIncoming]);
-        console.log('🔄 Merged incoming requests:', Array.from(merged));
-        return merged;
+        const currentIncoming = new Set(prev);
+        
+        const hasNewIncoming = [...backendIncoming].some(id => !currentIncoming.has(id));
+        const hasRemovedIncoming = [...currentIncoming].some(id => !backendIncoming.has(id));
+        
+        if (hasNewIncoming || hasRemovedIncoming) {
+          console.log('🔄 Updating incoming requests:', Array.from(backendIncoming));
+          return backendIncoming;
+        }
+        
+        console.log('🔄 Incoming requests unchanged, keeping current state');
+        return prev;
       });
       
       setMutualConnections(prev => {
         const backendMutual = new Set((data.mutual || []).map((id: string) => String(id)));
-        const merged = new Set([...prev, ...backendMutual]);
-        console.log('🔄 Merged mutual connections:', Array.from(merged));
-        return merged;
+        const currentMutual = new Set(prev);
+        
+        const hasNewMutual = [...backendMutual].some(id => !currentMutual.has(id));
+        const hasRemovedMutual = [...currentMutual].some(id => !backendMutual.has(id));
+        
+        if (hasNewMutual || hasRemovedMutual) {
+          console.log('🔄 Updating mutual connections:', Array.from(backendMutual));
+          return backendMutual;
+        }
+        
+        console.log('🔄 Mutual connections unchanged, keeping current state');
+        return prev;
       });
       // store hydrated profiles for dashboard
       if (Array.isArray(data.incomingProfiles)) {
@@ -223,7 +257,7 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   useEffect(() => {
     if (!currentUser?.id) return;
     refreshConnectionState();
-    const id = setInterval(() => refreshConnectionState(), 10000);
+    const id = setInterval(() => refreshConnectionState(), 30000); // Reduced frequency to 30s
     return () => clearInterval(id);
   }, [currentUser?.id]);
 
@@ -426,26 +460,28 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   };
 
   const sendConnectionRequest = async (matchId: string) => {
-    // optimistic update
+    console.log('🚀 Sending connection request for:', matchId);
+    
+    // optimistic update with immediate persistence
     setConnectionRequests(prev => {
       const newSet = new Set(prev);
       newSet.add(matchId);
+      // Immediately persist to localStorage
+      localStorage.setItem('syncup_connection_requests', JSON.stringify(Array.from(newSet)));
+      console.log('💾 Persisted connection requests:', Array.from(newSet));
       return newSet;
     });
 
     setPendingConnections(prev => {
       const newSet = new Set(prev);
       newSet.add(matchId);
+      // Immediately persist to localStorage
+      localStorage.setItem('syncup_pending_connections', JSON.stringify(Array.from(newSet)));
+      console.log('💾 Persisted pending connections:', Array.from(newSet));
       return newSet;
     });
     
     setCompanionMessage("Connection request sent! They'll be notified of your interest.");
-    
-    // persist locally immediately
-    const updatedRequests = Array.from(new Set([...Array.from(connectionRequests), matchId]));
-    const updatedPending = Array.from(new Set([...Array.from(pendingConnections), matchId]));
-    localStorage.setItem('syncup_connection_requests', JSON.stringify(updatedRequests));
-    localStorage.setItem('syncup_pending_connections', JSON.stringify(updatedPending));
     
     // Force UI update
     window.dispatchEvent(new CustomEvent('syncup_connections_updated'));
