@@ -468,8 +468,8 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       console.error('Failed to send connection request:', e);
     }
 
-    // Remove from current matches and refill
-    await removeMatchAndRefill(matchId);
+    // Don't remove from current matches - keep them visible for status updates
+    // await removeMatchAndRefill(matchId);
   };
 
   const acceptConnectionRequest = async (matchId: string) => {
@@ -520,8 +520,8 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       console.error('Failed to accept connection request:', e);
     }
 
-    // Remove accepted user from matches and refill
-    await removeMatchAndRefill(matchId);
+    // Don't remove accepted user from matches - keep them visible for chat access
+    // await removeMatchAndRefill(matchId);
   };
 
   const rejectConnectionRequest = async (matchId: string) => {
@@ -560,8 +560,8 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
       console.error('Failed to reject connection request:', e);
     }
 
-    // Remove rejected user from matches and refill
-    await removeMatchAndRefill(matchId);
+    // Don't remove rejected user from matches - keep them visible
+    // await removeMatchAndRefill(matchId);
   };
 
   const toggleLike = (matchId: string) => {
@@ -723,16 +723,17 @@ export const ProfileBuilderProvider: React.FC<{ children: ReactNode }> = ({ chil
   };
 
   // Filter analyzedMatches to exclude any profiles already acted upon
+  // Note: We keep liked profiles visible so users can send connection requests
   const filteredAnalyzedMatches = useMemo(() => {
     const exclude = new Set<string>();
     Array.from(passedMatches).forEach(id => exclude.add(String(id)));
-    Array.from(connectionRequests).forEach(id => exclude.add(String(id)));
-    Array.from(incomingRequests).forEach(id => exclude.add(String(id)));
-    Array.from(mutualConnections).forEach(id => exclude.add(String(id)));
-    Array.from(pendingConnections).forEach(id => exclude.add(String(id)));
-    Array.from(likedMatches).forEach(id => exclude.add(String(id)));
+    // Don't exclude connectionRequests - keep them visible for status updates
+    // Don't exclude incomingRequests - keep them visible for status updates  
+    // Don't exclude mutualConnections - keep them visible for chat access
+    // Don't exclude pendingConnections - keep them visible for status updates
+    // Don't exclude likedMatches - keep them visible so users can send connection requests
     return analyzedMatches.filter((m: any) => !exclude.has(String(m.id)));
-  }, [analyzedMatches, passedMatches, connectionRequests, incomingRequests, mutualConnections, pendingConnections, likedMatches]);
+  }, [analyzedMatches, passedMatches]);
 
   const value = {
     quizAnswers,
